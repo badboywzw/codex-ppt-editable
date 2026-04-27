@@ -2,6 +2,10 @@
   <img src="./assets/codex-ppt-hero.png" alt="Codex PPT hero: AI-rendered slide decks, from brief to PDF" width="100%">
 </p>
 
+<p align="center">
+  <strong>English</strong> · <a href="./README.zh-CN.md">简体中文</a>
+</p>
+
 # Codex PPT
 
 **Codex PPT** is a Codex skill for creating polished 16:9 presentation decks as fully AI-rendered slide images, then compiling the approved pages into a PDF.
