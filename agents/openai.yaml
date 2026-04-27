@@ -1,0 +1,4 @@
+interface:
+  display_name: "Codex PPT"
+  short_description: "AI-rendered slide decks from brief to PDF"
+  default_prompt: "Use $codex-ppt to turn this topic into a polished 16:9 PDF deck where every slide is fully AI-rendered as one complete page image."
