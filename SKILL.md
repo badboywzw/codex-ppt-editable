@@ -1,16 +1,24 @@
 ---
 name: codex-ppt
-description: Create polished 16:9 presentation decks as fully AI-rendered image-based PDF deliverables from a topic, outline, report, or rough notes. Use when the user asks to 自动做PPT, 做PPT, 生成PPT, make slides, create a slide deck, create a fully AI-generated image-based deck, or produce a presentation by first planning the narrative chain, deciding every slide including cover and closing pages, locking a unified style and layout system, generating each complete slide page as one AI-created bitmap image including layout, text, charts, and visuals, checking and regenerating weak pages, then combining the final slide images into one PDF.
+description: Create polished 16:9 presentation decks from a topic, outline, report, or rough notes in two modes: image mode with fully AI-rendered slide images, or editable PPTX mode that first generates approved slide images and then reconstructs each slide through per-slide subagents into editable PowerPoint text boxes and movable visual layers. Use when the user asks to 自动做PPT, 做PPT, 生成PPT, make slides, create a slide deck, create a fully AI-generated image-based deck, or produce an editable PowerPoint deck.
 ---
 
 # Codex PPT
 
-Create a complete presentation as ordered 16:9 slide images, then compile them into one PDF. The skill is for deck-making where planning, visual consistency, full-page AI generation, quality review, and PDF delivery all matter.
+Create a complete presentation as ordered 16:9 slide images, then either compile them into one PDF or use them as the approved visual target for an editable PPTX reconstruction pass. The skill is for deck-making where planning, visual consistency, full-page AI generation, quality review, and delivery format all matter.
+
+## Output Modes
+
+- `image` mode: generate approved slide images. This is the default unless the user asks for editable PowerPoint output; compile a PDF as the standard package unless the user only wants image files.
+- `editable-pptx` mode: generate and QA the slide images first, then launch one per-slide reconstruction subagent for each approved image, merge the resulting visual layers and text layers, and build a final editable `.pptx`.
 
 ## Default Assumptions
 
-- Output is a single PDF composed of full-slide images.
-- Preserve the working files: brief, storyline, design system, storyboard, prompts, generated images, QA notes, and final PDF.
+- Output mode defaults to `image`.
+- If the user asks for editable PPT, editable PowerPoint, selectable text, movable objects, or "图片转可编辑", use `editable-pptx`.
+- In `image` mode, output is the ordered slide image set; compile a PDF unless the user asks to stop at images.
+- In `editable-pptx` mode, output is a final editable `.pptx`; optionally also keep the image-mode PDF as a visual reference.
+- Preserve the working files: brief, storyline, design system, storyboard, prompts, generated images, QA notes, and final deliverable.
 - Use 16:9 throughout. Prefer 1920x1080 PNGs unless the user asks for another 16:9 size.
 - Default language follows the user's request; use Chinese when the user asks in Chinese.
 - If the user gives only a topic, choose a practical 8-12 slide structure.
@@ -28,9 +36,12 @@ A successful run leaves behind:
 5. One generation prompt per slide
 6. A complete set of final 16:9 slide images, each sourced from full-page AI generation
 7. A QA log showing which pages passed or were regenerated
-8. A final PDF compiled from the approved slide images
+8. In `image` mode: approved slide images, plus a final PDF unless the user asks for images only
+9. In `editable-pptx` mode: per-slide reconstruction artifacts, merged visual/text layers, QA notes, and a final editable PPTX
 
 ## Hard Constraints
+
+These constraints govern the approved slide images and the `image` deliverable. In `editable-pptx` mode, deterministic reconstruction is allowed only after the slide images are approved, and the derived PPTX artifacts must live separately under `editable/`.
 
 - Do not generate slide images before the narrative chain, design system, and storyboard are written.
 - Do not create final pages by generating a background and then adding text, shapes, charts, icons, screenshots, logos, arrows, or layout elements with HTML/CSS, canvas, Pillow, Keynote, PowerPoint, SVG, or any deterministic renderer.
@@ -38,7 +49,7 @@ A successful run leaves behind:
 - Do not accept any final slide unless the whole visible page is the AI-generated output, apart from non-content-preserving file operations such as copying, format conversion, compression, or strict 16:9 verification.
 - Do not treat "pretty images" as sufficient; each slide must have a job in the deck.
 - Do not let each slide drift into a different style. Reuse the same visual system, margins, type hierarchy, and image language.
-- Do not accept malformed AI-rendered text. Regenerate, shorten, split, or simplify the slide until the AI-rendered page is acceptable.
+- In `image` mode, do not accept malformed AI-rendered text. In `editable-pptx` mode, rough or imperfect baked text is acceptable only if the reconstruction removes or avoids it and replaces it with correct native editable text before delivery.
 - Do not crop away important slide content when compiling to PDF.
 - Do not deliver before checking page order, page count, aspect ratio, legibility, and content coverage.
 
@@ -63,7 +74,7 @@ Not allowed for final slide images:
 - using a deterministic slide renderer as the source of the final image
 - adding padding, letterboxing, or decorative borders to rescue the aspect ratio
 
-If a slide cannot pass because the AI model keeps rendering text poorly, reduce the text, make the slide more visual, split it into multiple slides, or ask the user to approve a different delivery mode. Do not silently switch to deterministic text composition.
+If an `image` mode slide cannot pass because the AI model keeps rendering text poorly, reduce the text, make the slide more visual, split it into multiple slides, or ask the user to approve editable PPTX mode. Do not silently switch image-mode final slides to deterministic text composition.
 
 ## Workflow
 
@@ -80,6 +91,7 @@ deck-name/
 ├── prompts/
 ├── slides/
 ├── qa/
+├── editable/   # only for editable-pptx mode
 └── final/
 ```
 
@@ -89,6 +101,7 @@ Write `brief.md` with:
 - target audience
 - objective
 - desired slide count
+- output mode: `image` or `editable-pptx`
 - language
 - tone
 - must-include content
@@ -187,7 +200,7 @@ For text-heavy slides:
 3. Split the slide if the model cannot render it legibly.
 4. Regenerate the full slide page until the AI-rendered text is acceptable.
 
-The final PDF must use the AI-generated full-slide images directly.
+The image-mode PDF and the approved visual reference for editable mode must use the AI-generated full-slide images directly.
 
 ### Phase 5. QA and Regenerate
 
@@ -203,7 +216,7 @@ Check every slide for:
 
 - 16:9 aspect ratio
 - full-page AI-generated provenance
-- readable and accurate text
+- readable and accurate text in `image` mode; in `editable-pptx` mode, record any AI-rendered text problems that must be removed and replaced during reconstruction
 - consistent style
 - correct slide order
 - one clear idea per slide
@@ -212,7 +225,7 @@ Check every slide for:
 
 Regenerate any slide marked `fix` or `regenerate`. Use AI edit/regeneration only; do not locally repair the page. Do not continue to PDF until every slide is marked `pass`.
 
-### Phase 6. Compile the PDF
+### Phase 6. Package Image Mode
 
 Use the bundled script to combine final slide images:
 
@@ -233,7 +246,51 @@ After compiling, verify:
 - pages are landscape 16:9
 - no important content is cropped or padded unintentionally
 
+If the selected output mode is `image`, stop after this verification and deliver the images, optional PDF, and source artifacts.
+
+### Phase 7. Build Editable PPTX Mode
+
+Use this phase only when the selected output mode is `editable-pptx`. Read `references/editable-pptx-mode.md` before starting this phase, and use `references/editable-slide-subagent-prompt.md` as the per-slide subagent template.
+
+Process:
+
+1. Keep the approved slide images in `slides/` unchanged.
+2. Create `editable/subagents/`.
+3. Launch one subagent per approved slide when subagents are available. If subagents are unavailable, process the same per-slide contract sequentially.
+4. Each slide worker must produce textless visual layers plus native editable text metadata, not a single baked screenshot with duplicated editable overlay text.
+5. Merge the per-slide outputs:
+
+```bash
+python /path/to/codex-ppt/scripts/merge_editable_slide_outputs.py \
+  /path/to/deck-name/editable/subagents \
+  --out-layers-root /path/to/deck-name/editable/visual-layers \
+  --out-text-json /path/to/deck-name/editable/text-layer.json \
+  --force
+```
+
+6. Build the final editable PPTX:
+
+```bash
+node /path/to/codex-ppt/scripts/build_editable_ppt_from_layers.mjs \
+  --backend auto \
+  --layers-root /path/to/deck-name/editable/visual-layers \
+  --text-json /path/to/deck-name/editable/text-layer.json \
+  --out /path/to/deck-name/final/deck.editable.pptx \
+  --workspace /path/to/deck-name/editable/workspace \
+  --preview-dir /path/to/deck-name/editable/preview \
+  --layout-dir /path/to/deck-name/editable/layout \
+  --slide-size 960x540
+```
+
+Run `npm install` in the skill folder before using the fallback PPTX builder. Use `--fail-on-text-fill` during strict QA when text-layer data should be rejected if any text box still has fill or outline styling.
+
+Before delivery, verify the PPTX opens, slide count matches, `ppt/slides/slide*.xml` contains editable semantic text, and no obvious duplicate baked/editable text remains.
+
 ## Bundled Resources
 
 - `scripts/compile_slide_images_to_pdf.py`: compile ordered slide images into a 16:9 PDF and write a JSON preflight report.
+- `scripts/build_editable_ppt_from_layers.mjs`: assemble textless visual layers and editable text objects into a PPTX.
+- `scripts/merge_editable_slide_outputs.py`: merge one reconstruction folder per slide into one visual-layers root and one deck-level `text-layer.json`.
 - `references/slide-quality-checklist.md`: QA checklist and regeneration rules for slide images.
+- `references/editable-pptx-mode.md`: editable mode folder contract, subagent workflow, build commands, and QA gates.
+- `references/editable-slide-subagent-prompt.md`: reusable prompt template for the per-slide reconstruction subagents.
