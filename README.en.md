@@ -34,13 +34,13 @@ Longer wording may need a larger text box or smaller font.
 ## Just ask
 
 ```text
-Use $codex-ppt to make an 8-slide beginner piano deck.
-White background, technology blue, 16:9. I want to edit the words myself.
+Use $codex-ppt to make an 8-slide work report.
+Keep it clear and concise. I want to edit the words myself.
 ```
 
 ```text
-Here is the PPTX I edited. Keep my changes, update the practice tip,
-and add a slide called “Next practice” in the same style.
+Here is the PPTX I edited. Keep my changes, update the content,
+and add a slide called “Next steps” in the same style.
 ```
 
 Open the delivered `.pptx` in PowerPoint or WPS, double-click text to edit, and
@@ -67,7 +67,7 @@ Poppler (`pdfinfo`, `pdftoppm`) and `pypdf`. Reuse existing dependencies when
 available. Override paths with `--node`, `--soffice`, `--pdftoppm`, `--temp-dir`.
 
 ```bash
-python scripts/deck.py init /path/to/project --title "Piano basics"
+python scripts/deck.py init /path/to/project --title "Work report"
 # Edit deck.json and provide the planned artwork.
 python scripts/deck.py plan /path/to/project/deck.json
 python scripts/deck.py build /path/to/project/deck.json

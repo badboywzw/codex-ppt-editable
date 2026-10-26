@@ -31,8 +31,8 @@
 ## 怎么用？直接这样说
 
 ```text
-用 $codex-ppt 做一份8页钢琴入门PPT。
-白底、科技蓝、16:9，给我能自己修改文字的PPT。
+用 $codex-ppt 做一份8页工作汇报PPT。
+简洁清楚，给我能自己修改文字的PPT。
 ```
 
 也可以做课程讲义、工作汇报、产品介绍等内容。想要别的风格，直接说明。
@@ -40,8 +40,8 @@
 如果你已经手动改过：
 
 ```text
-这是我改过的PPT。保留我的修改，把练习提示改一下，
-再加一页“下次练习计划”，风格和前面一致。
+这是我改过的PPT。保留我的修改，更新内容，
+再加一页“下一步计划”，风格和前面一致。
 ```
 
 ## 做好后，我怎么自己改？
@@ -75,7 +75,7 @@ npm ci
 （`pdfinfo`、`pdftoppm`）及 `pypdf`。已有运行环境时直接复用。
 
 ```bash
-python scripts/deck.py init /path/to/project --title "钢琴入门"
+python scripts/deck.py init /path/to/project --title "工作汇报"
 # 修改项目中的 deck.json，再补齐所需素材。
 python scripts/deck.py plan /path/to/project/deck.json
 python scripts/deck.py build /path/to/project/deck.json
