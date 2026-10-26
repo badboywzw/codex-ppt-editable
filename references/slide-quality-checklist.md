@@ -20,12 +20,14 @@ Use this checklist after each image generation pass and again before PDF compila
 - Data, claims, and examples match the user's source material.
 - No slide introduces an unexplained term, random statistic, or unsupported claim.
 
-## Visual System
+## Visual System & Aesthetic Continuity
 
-- Palette, type scale, margins, grid, icon style, and image treatment are consistent.
-- Layout variants repeat intentionally instead of changing randomly.
-- Visual density fits the audience and purpose.
-- Important information is not buried under decorative images.
+- The selected preset from `references/aesthetic-style-library.md` (color tokens, background texture, border geometry, and typography hierarchy) remains unmistakably visible on **every body slide**, not only on the cover.
+- Each body slide features a clear **Claim Band** (section tag + one-sentence takeaway headline) rather than a bare topic title.
+- Each slide has a **dominant visual or proof object** occupying 45%–60% of the canvas.
+- Consecutive slides use distinct **layout archetypes** from `references/page-template-grammar.md` instead of repeating generic 3-card or 4-card grids.
+- **Contamination Guard**: no unrelated cross-domain motifs (e.g., crops in non-agri decks, robots in non-industrial decks, medical stethoscopes in education decks) or carryover project names/logos appear.
+- Visual density fits the audience and purpose; important information is not buried under decorative clutter.
 - Charts and diagrams have clear labels, enough contrast, and no fake precision.
 
 ## AI Image Issues

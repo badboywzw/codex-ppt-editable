@@ -1,6 +1,6 @@
 {
   "name": "codex-ppt",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": false,
   "type": "module",
   "description": "Producer-style AI slide deck skill for Codex & AI agents — generate 16:9 poster-grade PDF decks or multi-layer editable PPTX presentations.",

@@ -25,13 +25,34 @@ Instead of stitching together generic templates or locally patching broken text,
 
 ---
 
-## What's New in v0.3.0
+## What's New in v0.4.0
 
-- **Automatic 3-Level Canvas Coordinate Scaling**: `build_editable_ppt_from_layers.mjs` now normalizes both visual layer assets and native text boxes from source image coordinates (e.g. `1920x1080` at deck, slide, or item level) to `--slide-size` (`960x540`), supporting both array `[x, y, w, h]` and object `{x, y, w, h}` geometries.
-- **Per-Slide Metadata & Layer Z-Order**: `merge_editable_slide_outputs.py` and the PPTX builder now preserve per-slide `background`, `canvas`, `route`, `zIndex` stacking order, and rich typography (`italic`, `underline`, `charSpacing`, `lineSpacingMultiple`, `opacity`/`transparency`, `rotation`).
-- **Automated Visual Contact Sheet (`--contact-sheet`)**: `compile_slide_images_to_pdf.py` can render a captioned multi-column grid of all slides (`qa/contact-sheet.jpg`) to inspect deck-wide style consistency at a glance.
-- **Automated Deliverable Verifier (`verify_deck_outputs.py`)**: New CLI tool that validates slide aspect ratios/resolutions, checks editable text-layer bounds and high-IoU overlaps, blocks path traversal in layer manifests, and inspects `.pptx` XML (`ppt/slides/slide*.xml`) to confirm semantic `<a:t>` text runs exist on every slide.
+- **10 Curated Aesthetic Presets (`references/aesthetic-style-library.md`)**: Built-in art-direction system across 3 families (**Editorial & Minimalist**, **Bold Creative & Pitch**, **Roadshow & Domain Evidence**) with exact HEX tokens, typography rules, copy-paste Prompt DNA, and cross-domain Contamination Guards.
+- **12 Page Layout Archetypes & Body-Slide Polish (`references/page-template-grammar.md`)**: Eliminates "strong cover, weak body" syndrome by enforcing a 5-layer page depth formula, Claim Band headlines, and 12 non-repetitive layout formulas.
+- **Automatic 3-Level Canvas Coordinate Scaling**: `build_editable_ppt_from_layers.mjs` normalizes both visual layer assets and native text boxes from source image coordinates (e.g. `1920x1080` at deck, slide, or item level) to `--slide-size` (`960x540`), supporting both array `[x, y, w, h]` and object `{x, y, w, h}` geometries.
+- **Per-Slide Metadata & Layer Z-Order**: `merge_editable_slide_outputs.py` and the PPTX builder preserve per-slide `background`, `canvas`, `route`, `zIndex` stacking order, and rich typography (`italic`, `underline`, `charSpacing`, `lineSpacingMultiple`, `opacity`/`transparency`, `rotation`).
+- **Automated Visual Contact Sheet (`--contact-sheet`)**: `compile_slide_images_to_pdf.py` renders a captioned multi-column grid of all slides (`qa/contact-sheet.jpg`) to inspect deck-wide style consistency at a glance.
+- **Automated Deliverable Verifier (`verify_deck_outputs.py`)**: Validates slide aspect ratios/resolutions, checks editable text-layer bounds and high-IoU overlaps, blocks path traversal in layer manifests, and inspects `.pptx` XML (`ppt/slides/slide*.xml`) to confirm semantic `<a:t>` text runs exist on every slide.
 - **Full Test Suite & CI**: Added `pytest` and `node:test` suites with GitHub Actions CI.
+
+---
+
+## 10 Curated Aesthetic Presets
+
+Codex PPT automatically routes your topic to the best art-direction preset (or honors your explicit choice) via [`references/aesthetic-style-library.md`](./references/aesthetic-style-library.md):
+
+| Preset ID | Family | Aesthetic Direction | Core Palette & Signature Grammar |
+| :--- | :--- | :--- | :--- |
+| `swiss-klein-editorial` | Editorial & Minimalist | **瑞士国际主义 · 克莱因蓝网格** | `#FAFAF8` paper + `#0A0A0A` ink + `#002FA7` IKB blue; 8pt hairline grid, sharp 90° blocks, oversized KPI numerals |
+| `monocle-ink-magazine` | Editorial & Minimalist | **独立杂志 · 电子墨水人文风** | `#F1EFEA` newsprint + `#0A0A0B` press black + `#C84B31` terracotta; running headers, serif/sans contrast, warm infographics |
+| `apple-keynote-bento` | Editorial & Minimalist | **暗调旗舰 · Bento 发布会风** | `#090A0F` obsidian + `#161822` titanium Bento cards + `#5E6AD2` / `#F5A623` spotlight; 1px specular borders, 3D hero stage |
+| `kenya-hara-zen` | Editorial & Minimalist | **东方留白 · 原研哉“空”之美学** | `#F7F5F0` washi white + `#1C1B19` charcoal + `#B83B2B` vermilion seal; 70%+ open space, tactile paper shadow |
+| `memphis-pop-playful` | Bold Creative & Pitch | **暗盒孟菲斯 · 高饱和波普贴纸** | `#000000` stage + `#FFE600` yellow / `#FF006E` pink / `#00CFFF` cyan; 2.5D toy machines, die-cut stickers, polka dots |
+| `neo-brutalist-zine` | Bold Creative & Pitch | **新粗野主义 · 创客先锋海报** | `#FFFDF5` cream + `#000000` 3px solid borders & 45° hard shadows + pastel yellow/violet; monospace pills, window frames |
+| `dark-emerald-roadshow` | Roadshow & Domain | **深翠流金 · AI 与科创路演** | `#061A17` deep emerald + `#00F0FF` cyan HUD + `#F3C663` warm gold claim band; dominant central proof board |
+| `industrial-cobalt-hud` | Roadshow & Domain | **深海钴蓝 · 工业智造与机器人** | `#071326` navy + `#102A52` cobalt + `#00D4FF` telemetry cyan + `#FFB800` amber; metallic frames, robot/twin hero |
+| `clinical-ice-blue` | Roadshow & Domain | **冰川澄蓝 · 医疗健康与智慧教育** | `#F6FAFD` ice white-blue + `#0F52BA` sapphire + `#FF7A00` orange emphasis; airy floating panels, clinical/academic clarity |
+| `heritage-parchment-gold` | Roadshow & Domain | **宋锦宣纸 · 非遗文旅与东方人文** | `#F3EAD8` aged silk parchment + `#2C1D14` walnut + `#C59B5F` bronze gold; brush calligraphy, craft/artifact hero |
 
 ---
 
@@ -184,6 +205,8 @@ The repository includes a complete 10-slide generated deck (**SHIT APP Memphis P
 ├── SKILL.md                                    # Core skill workflow & hard constraints
 ├── agents/openai.yaml                          # Codex skill metadata
 ├── references/
+│   ├── aesthetic-style-library.md              # 10 curated aesthetic presets & routing matrix
+│   ├── page-template-grammar.md                # 12 layout archetypes & body-slide polish rules
 │   ├── slide-quality-checklist.md              # Image QA & regeneration rules
 │   ├── editable-pptx-mode.md                   # Editable PPTX pipeline & QA gates
 │   └── editable-slide-subagent-prompt.md       # Per-slide reconstruction subagent template

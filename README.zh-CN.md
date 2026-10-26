@@ -25,13 +25,34 @@ Codex PPT 拒绝“廉价模板拼接 + 本地硬塞文字”的做法，而是�
 
 ---
 
-## v0.3.0 更新亮点
+## v0.4.0 更新亮点
 
-- **三级画布坐标自动缩放（Canvas Auto-Normalization）**：`build_editable_ppt_from_layers.mjs` 现支持在 Deck、单页（Slide/Manifest）或单元素级别声明 `canvas: [width, height]`（如 `[1920, 1080]`），自动将视觉层与文本框坐标等比映射到 `--slide-size`（如 `960x540`），同时兼容 `[x, y, w, h]` 数组与 `{x, y, w, h}` 对象格式。
+- **内置 10 大精选审美风格体系（`references/aesthetic-style-library.md`）**：涵盖 **杂志极简派**、**先锋创意派**、**高规格路演派** 三大谱系共 10 套高审美预设，内置自动路由矩阵、精确 HEX 色值、排版网格法则、可复制 Prompt DNA 及跨领域“防串味”护栏（Contamination Guard）。
+- **12 种核心页面版式语法与内页精修指南（`references/page-template-grammar.md`）**：彻底解决 AI 做 PPT 常见的“封面惊艳、内页沦为平庸四宫格”痛点，引入 5 层页面景深公式、标题即结论带（Claim Band）法则及 12 种禁止连续重复的版式原型。
+- **三级画布坐标自动缩放（Canvas Auto-Normalization）**：`build_editable_ppt_from_layers.mjs` 支持在 Deck、单页（Slide/Manifest）或单元素级别声明 `canvas: [width, height]`（如 `[1920, 1080]`），自动将视觉层与文本框坐标等比映射到 `--slide-size`（如 `960x540`），同时兼容 `[x, y, w, h]` 数组与 `{x, y, w, h}` 对象格式。
 - **保留单页元数据与图层 Z-Order**：`merge_editable_slide_outputs.py` 与 PPTX 构建器完整保留每页独立的 `background`（背景色）、`canvas`、`route`（重建路径）、`zIndex` 图层叠放顺序，以及富文本样式（`italic`、`underline`、`charSpacing`、`lineSpacingMultiple`、`opacity`/`transparency`、`rotation`）。
 - **一键生成 QA 预览拼图（`--contact-sheet`）**：`compile_slide_images_to_pdf.py` 支持直接输出带页码、文件名与分辨率标注的多列网格预览图（`qa/contact-sheet.jpg`），方便一眼排查整套 Deck 的风格漂移与排版问题。
-- **自动化交付校验器（`verify_deck_outputs.py`）**：新增命令行校验工具，自动检查图片比例与最低分辨率、可编辑文本层越界与高重叠（IoU）风险、拦截图层清单路径穿越（Path Traversal），并直接解析 `.pptx` 内部 `ppt/slides/slide*.xml` 验证每页均包含原生可编辑 `<a:t>` 文本节点。
+- **自动化交付校验器（`verify_deck_outputs.py`）**：自动检查图片比例与最低分辨率、可编辑文本层越界与高重叠（IoU）风险、拦截图层清单路径穿越，并直接解析 `.pptx` 内部 `ppt/slides/slide*.xml` 验证每页均包含原生可编辑 `<a:t>` 文本节点。
 - **完整单元测试与 GitHub Actions CI**：补齐 Python（`pytest`）与 Node.js（`node:test`）测试套件及自动化流水线。
+
+---
+
+## 10 大内置审美风格预设
+
+Codex PPT 会根据你的主题自动匹配最契合的视觉基因（也可在指令中直接指定风格），详见 [`references/aesthetic-style-library.md`](./references/aesthetic-style-library.md)：
+
+| 风格 ID | 美学谱系 | 风格名称 | 核心色板与视觉语法 |
+| :--- | :--- | :--- | :--- |
+| `swiss-klein-editorial` | 杂志极简派 | **瑞士国际主义 · 克莱因蓝网格** | 暖灰白底 `#FAFAF8` + 近黑 `#0A0A0A` + 克莱因蓝 `#002FA7`（可选柠檬黄/荧光绿/安全橙）；8pt 裸露细线网格、直角纯色块、巨型 KPI 数字锚点 |
+| `monocle-ink-magazine` | 杂志极简派 | **独立杂志 · 电子墨水人文风** | 暖米纸底 `#F1EFEA` + 印刷墨黑 `#0A0A0B` + 赭石红 `#C84B31`；报刊双线眉栏、高对比衬线/黑体混排、社论级数据图 |
+| `apple-keynote-bento` | 杂志极简派 | **暗调旗舰 · Bento 发布会风** | 曜石黑 `#090A0F` + 钛灰 Bento 卡片 `#161822` + 高光描边 `#2A2F42`；不对称便当盒布局、电影级轮廓光、3D/UI 主体 |
+| `kenya-hara-zen` | 杂志极简派 | **东方留白 · 原研哉“空”之美学** | 宣纸暖白 `#F7F5F0` + 炭墨 `#1C1B19` + 朱砂印泥微点缀 `#B83B2B`；70%+ 极致留白、纸张肌理、0.5pt 极细信息图 |
+| `memphis-pop-playful` | 先锋创意派 | **暗盒孟菲斯 · 高饱和波普贴纸** | 纯黑舞台 `#000000` + 亮黄 `#FFE600` / 热粉 `#FF006E` / 湖蓝 `#00CFFF`；2.5D 潮玩互动装置、粗黑描边贴纸、波点锯齿 |
+| `neo-brutalist-zine` | 先锋创意派 | **新粗野主义 · 创客先锋海报** | 奶油底 `#FFFDF5` + 3px 纯黑实线框与 45° 硬阴影 + 酸性紫/荧光黄；等宽代码胶囊标签、复古窗口框架 |
+| `dark-emerald-roadshow` | 高规格路演派 | **深翠流金 · AI 与科创路演** | 深祖母绿 `#061A17` + 科技青 HUD `#00F0FF` + 流金结论带 `#F3C663`；顶部章节导航条 + 中央大型证据看板 |
+| `industrial-cobalt-hud` | 高规格路演派 | **深海钴蓝 · 工业智造与机器人** | 深海藏青 `#071326` + 钴蓝面板 `#102A52` + 工业青 `#00D4FF` + 琥珀金 `#FFB800`；金属边框、机械臂/数字孪生主体 |
+| `clinical-ice-blue` | 高规格路演派 | **冰川澄蓝 · 医疗健康与智慧教育** | 冰白底 `#F6FAFD` + 学院/医疗蓝 `#0F52BA` + 活力橙 `#FF7A00`；高透悬浮圆角面板、穿戴传感器/知识图谱主体 |
+| `heritage-parchment-gold` | 高规格路演派 | **宋锦宣纸 · 非遗文旅与东方人文** | 宣纸米黄 `#F3EAD8` + 深胡桃木 `#2C1D14` + 青铜金 `#C59B5F` + 胭脂印 `#9E2A2B`；书法主标题、非遗器物手工艺主体 |
 
 ---
 
@@ -184,6 +205,8 @@ python scripts/verify_deck_outputs.py \
 ├── SKILL.md                                    # 核心 Skill 工作流与硬性约束
 ├── agents/openai.yaml                          # Codex Skill 界面元数据
 ├── references/
+│   ├── aesthetic-style-library.md              # 10 大审美风格预设库与路由矩阵
+│   ├── page-template-grammar.md                # 12 种页面版式原型与内页精修指南
 │   ├── slide-quality-checklist.md              # 页面图片 QA 与重生规则
 │   ├── editable-pptx-mode.md                   # 可编辑 PPTX 重建协议与质量门禁
 │   └── editable-slide-subagent-prompt.md       # 单页重建 Subagent 提示词模版

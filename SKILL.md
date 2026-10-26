@@ -1,6 +1,6 @@
 ---
 name: codex-ppt
-description: Create polished 16:9 presentation decks from a topic, outline, report, or rough notes in two modes: image mode with fully AI-rendered slide images, or editable PPTX mode that first generates approved slide images and then reconstructs each slide through per-slide subagents into editable PowerPoint text boxes and movable visual layers. Use when the user asks to 自动做PPT, 做PPT, 生成PPT, make slides, create a slide deck, create a fully AI-generated image-based deck, or produce an editable PowerPoint deck.
+description: Create polished 16:9 presentation decks from a topic, outline, report, or rough notes in two modes: image mode with fully AI-rendered slide images, or editable PPTX mode that first generates approved slide images and then reconstructs each slide through per-slide subagents into editable PowerPoint text boxes and movable visual layers. Includes 10 curated aesthetic presets (Swiss Klein Blue, Monocle Magazine, Apple Keynote Bento, Kenya Hara Zen, Memphis Pop, Neo-Brutalist Zine, Dark Emerald Roadshow, Industrial Cobalt HUD, Clinical Ice Blue, Heritage Parchment Gold) and 12 layout archetypes. Use when the user asks to 自动做PPT, 做PPT, 生成PPT, 创赛PPT, 路演PPT, 指定PPT风格, make slides, create a slide deck, create a fully AI-generated image-based deck, or produce an editable PowerPoint deck.
 ---
 
 # Codex PPT
@@ -121,68 +121,66 @@ Hook -> Context -> Tension -> Key Insight -> Solution / Argument -> Evidence -> 
 
 Adapt the chain to the deck type:
 
-- Sales: pain -> cost -> new way -> proof -> offer -> next step
-- Strategy: current state -> pressure -> options -> decision logic -> roadmap -> ask
-- Education: curiosity -> concept -> examples -> practice -> recap
-- Product: user problem -> product idea -> workflow -> differentiators -> trust -> call to action
-- Report: question -> method -> findings -> interpretation -> recommendation
+- **Sales**: pain -> cost -> new way -> proof -> offer -> next step
+- **Strategy**: current state -> pressure -> options -> decision logic -> roadmap -> ask
+- **Education**: curiosity -> concept -> examples -> practice -> recap
+- **Product**: user problem -> product idea -> workflow -> differentiators -> trust -> call to action
+- **Report**: question -> method -> findings -> interpretation -> recommendation
+- **Competition / Roadshow (创赛 / 路演)**: credible problem -> why now -> decisive insight -> one-sentence solution -> product workflow -> core tech innovation -> demo validation -> moat/comparison -> business/growth -> team & ask
 
-### Phase 2. Lock the Visual System
+### Phase 2. Select Aesthetic Preset & Lock the Visual System
 
-Write `design-system.md` before slide prompts.
+Read `references/aesthetic-style-library.md` before writing `design-system.md`.
 
-Include:
+First, select the best aesthetic preset (or honor the user's explicit choice) from the **10 curated archetypes**:
 
-- visual atmosphere
-- color palette with roles
-- typography direction and hierarchy
-- recurring grid, margins, and safe areas
-- cover layout
-- section divider layout if needed
-- body slide layout variants
-- chart/data treatment
-- image style
-- icon/illustration style
-- footer/page-number rules
-- negative prompt and anti-patterns
+- **Editorial & Minimalist**: `swiss-klein-editorial` (瑞士克莱因蓝网格), `monocle-ink-magazine` (独立杂志电子墨水), `apple-keynote-bento` (暗调旗舰 Bento 发布会), `kenya-hara-zen` (东方留白“空”之美学)
+- **Bold Creative & Pitch**: `memphis-pop-playful` (暗盒孟菲斯高饱和贴纸), `neo-brutalist-zine` (新粗野主义创客海报)
+- **Roadshow & Domain Evidence**: `dark-emerald-roadshow` (深翠流金 AI 科创路演), `industrial-cobalt-hud` (深海钴蓝工业智造), `clinical-ice-blue` (冰川澄蓝医疗/智慧教育), `heritage-parchment-gold` (宋锦宣纸非遗人文)
 
-Keep the design system specific enough to paste into every slide prompt. Avoid generic one-note palettes, default gradients, visual clutter, and decorative elements that do not support the deck's story.
+Then write `design-system.md` with:
+
+- selected aesthetic preset ID, family, and rationale
+- exact HEX color palette with functional roles (background, surface, border, primary ink, accent)
+- typography direction and scale hierarchy
+- recurring grid, margins, page chrome, and safe areas
+- cover formula and body-slide layout rules
+- chart/data and dominant proof-object treatment
+- **Contamination Guard**: explicitly list forbidden cross-domain motifs (e.g. no crops outside agriculture, no robots outside manufacturing, no stethoscopes in education decks) and forbid unrelated template carryover words/logos
+- pasteable Prompt DNA and negative prompt block
 
 ### Phase 3. Build the Storyboard
 
-Write `storyboard.md` as the source of truth. Every slide must have:
+Read `references/page-template-grammar.md` and write `storyboard.md` as the source of truth. Every slide must have:
 
 - slide number and filename
 - slide role in the narrative chain
-- title
-- main takeaway
-- exact on-slide copy or copy plan
-- layout type
-- visual content
-- generation prompt notes
-- QA risks
+- **layout archetype ID** (chosen from the 12 archetypes in `references/page-template-grammar.md`, such as `hero-stage-cover`, `three-force-convergence`, `journey-pain-pins`, `before-after-split`, `central-product-hub`, `input-engine-output`, `three-tier-architecture`, `editorial-big-stat`, `demo-wall-metrics`, `moat-comparison-matrix`, `flywheel-milestone-finale`) — **never repeat the same layout archetype on two consecutive slides**
+- section tag + **one-sentence claim headline** (state the conclusion, not just a topic noun)
+- exact on-slide copy within the text budget (< 80–120 Chinese chars or < 50 English words)
+- **dominant visual / proof object** (occupying 45%–60% of the canvas)
+- generation prompt notes and QA risks
 
 Minimum deck structure:
 
-1. Cover: topic, audience promise, date/context if useful
-2. Agenda or orientation slide when the deck is longer than 8 slides
-3. Body slides, each with one dominant idea
-4. Synthesis or recommendation slide near the end
-5. Closing slide with takeaway, call to action, or memorable final line
+1. Cover (`hero-stage-cover`): topic, positioning sentence, dominant hero object, and metadata/proof badges
+2. Agenda or orientation slide (`visual-route-agenda`) when the deck is longer than 8 slides
+3. Body slides, each with one dominant idea, one claim band, one concrete proof object, and varied layout archetypes
+4. Synthesis, validation, or moat comparison slide near the end
+5. Closing slide (`flywheel-milestone-finale`) with takeaway, call to action, or memorable final line
 
 ### Phase 4. Generate Slide Images
 
-Create one prompt file per slide under `prompts/slide-XX.md`.
+Create one prompt file per slide under `prompts/slide-XX.md` following the **Standard Full-Page Prompt Spine** in `references/page-template-grammar.md`.
 
 Each prompt must include:
 
-- the shared design-system block
-- the slide's role and takeaway
-- exact 16:9 requirement
-- composition and safe-area instructions
-- exact on-slide text, kept short
-- visual subject and mood
-- negative prompt
+- the selected aesthetic preset ID and shared design-system block (including exact HEX tokens and Prompt DNA)
+- the slide's role, layout archetype, and one-sentence takeaway
+- exact 16:9 (`1920x1080`) requirement and safe-area margins
+- exact on-slide text (Section Tag, Headline Claim, and 3–6 short labels/badges)
+- dominant visual/proof object (45%–60% area) and supporting callout structure
+- Contamination Guard and negative prompt
 - explicit instruction that the whole slide, including text and layout, must be AI-rendered in one complete image
 
 Use available AI image generation for each slide. Generate each slide as a complete finished page, sequentially or in small batches, then save the selected AI output as:
@@ -309,6 +307,8 @@ Before delivery, verify the PPTX opens, slide count matches, `ppt/slides/slide*.
 - `scripts/merge_editable_slide_outputs.py`: validate and merge one reconstruction folder per slide into one visual-layers root and one deck-level `text-layer.json` while preserving per-slide `background`, `canvas`, and `route`.
 - `scripts/build_editable_ppt_from_layers.mjs`: assemble textless visual layers and editable text objects into a PPTX with automatic coordinate scaling from source `canvas` to `--slide-size`.
 - `scripts/verify_deck_outputs.py`: automated QA verifier for slide image dimensions/aspect ratios, editable layer bounds/overlaps, and `.pptx` XML semantic text runs.
+- `references/aesthetic-style-library.md`: 10 curated aesthetic presets across 3 style families with routing matrix, HEX tokens, Prompt DNA, and Contamination Guard.
+- `references/page-template-grammar.md`: 5-layer page depth formula, Claim Band rules, 12 non-repetitive page layout archetypes, Full-Page Prompt Spine, and body-slide upgrade snippets.
 - `references/slide-quality-checklist.md`: QA checklist and regeneration rules for slide images.
 - `references/editable-pptx-mode.md`: editable mode folder contract, subagent workflow, build commands, and QA gates.
 - `references/editable-slide-subagent-prompt.md`: reusable prompt template for the per-slide reconstruction subagents.
