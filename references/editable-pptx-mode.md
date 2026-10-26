@@ -1,12 +1,14 @@
-# Editable PPTX Mode
+# Editable PPTX: Existing-Image Reconstruction
 
-Use this reference when the user asks for editable PowerPoint output, selectable text, movable objects, or "图片生成后再转可编辑 PPT".
+Use this reference for existing full-page slide images, an image-only PPTX, or an explicit request to reconstruct approved image references. For a new editable deck, use [textless-first-mode.md](textless-first-mode.md) instead; do not generate baked text only to remove it again.
 
 ## Mode Contract
 
-Editable mode has two stages:
+Existing-image reconstruction has two stages:
 
-1. Generate and QA the complete slide images exactly as normal Codex PPT.
+1. Select and inspect the supplied/approved complete slide images. Generate a
+   new reference only when that generation was explicitly requested; do not
+   recreate a supplied image just to start reconstruction.
 2. Reconstruct each approved slide image into editable PowerPoint layers, then assemble one final `.pptx`.
 
 Keep the approved slide images unchanged. Put editable reconstruction artifacts in a separate `editable/` folder so image-mode evidence and editable-mode derived artifacts do not overwrite each other.

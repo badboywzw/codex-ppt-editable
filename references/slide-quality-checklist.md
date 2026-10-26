@@ -1,13 +1,13 @@
 # Slide Quality Checklist
 
-Use this checklist after each image generation pass and again before PDF compilation.
+Use this checklist for the selected output mode. New editable decks combine textless artwork and native text. Full-page AI text requirements apply only to `image` mode.
 
 ## Preflight
 
 - All expected slides exist and match the storyboard count.
 - Filenames sort in the intended order, such as `slide-01-cover.png`, `slide-02-agenda.png`.
 - Every page is landscape 16:9. Prefer 1920x1080 or higher.
-- Every final page is a full-slide AI-generated image, not an AI background with locally added text or shapes.
+- In `image` mode, every final page is a full-slide AI-generated image. In editable modes, linguistic text is native and the corresponding artwork regions are free of baked words.
 - Slide content stays inside a safe area; no title, label, logo, or page number touches the edge.
 - The cover and closing slide feel intentionally designed, not like generic placeholders.
 
@@ -30,7 +30,7 @@ Use this checklist after each image generation pass and again before PDF compila
 
 ## AI Image Issues
 
-Regenerate the full slide when you see:
+Repair the affected artwork when you see the following; regenerate a full page only when that page is the image-mode deliverable or the entire artwork is defective:
 
 - misspelled, nonsensical, or warped text
 - random symbols, fake logos, or stray marks
@@ -42,9 +42,9 @@ Regenerate the full slide when you see:
 
 ## Text Handling
 
-- All visible text in the final slide image must be AI-rendered as part of the complete page.
-- Do not add or repair text with HTML/CSS, canvas, Pillow, PowerPoint, Keynote, SVG, or any deterministic renderer.
-- If exact text matters, keep it short and regenerate until it is visibly correct.
+- In editable modes, fix words, line breaks, sizes and positions in the native text source. Reuse the artwork; do not call image generation for a text-only correction.
+- Run `check_editable_pptx.py` against the text source to check native text retention and transparent boxes. This does not replace visual inspection of raster layers or line wrapping.
+- In `image` mode, visible text belongs in the AI-rendered page. Do not repair it with deterministic overlays; revise and regenerate that page.
 - Keep titles short and legible.
 - Preserve the user's terminology exactly.
 - Check Chinese punctuation, line breaks, and mixed Chinese/English spacing.
@@ -52,7 +52,7 @@ Regenerate the full slide when you see:
 ## Regeneration Rules
 
 - Regenerate when the composition, style, or image quality is wrong.
-- Regenerate when text placement, alignment, or a small label is wrong; do not locally repair or recompose it.
+- In editable modes, repair text placement/alignment/labels in the text source. In `image` mode, regenerate the page instead of adding overlays.
 - Rewrite the prompt before regenerating; do not repeat a failed vague prompt.
 - Tighten the prompt with the exact slide role, composition, safe area, and negative prompt.
 - Shorten or split a slide when the image model cannot render dense text legibly.
@@ -63,5 +63,5 @@ Regenerate the full slide when you see:
 - Page count equals the approved slide count.
 - Page order matches `storyboard.md`.
 - All pages have the same 16:9 dimensions.
-- No slide has accidental padding, letterboxing, local overlays, or cropping.
+- No slide has accidental padding, letterboxing or cropping. Editable previews can contain the intended native text composition; image-mode pages cannot use corrective overlays.
 - The first page works as a cover and the last page works as a confident ending.
