@@ -1,127 +1,122 @@
-<p align="center">
-  <img src="./assets/codex-ppt-hero.png" alt="Codex PPT 头图：AI-rendered slide decks, from brief to PDF" width="100%">
-</p>
+# Codex PPT 可编辑版
 
-<p align="center">
-  <a href="./README.md">English</a> · <strong>简体中文</strong>
-</p>
+## AI 帮你做 PPT，生成后你还能自己改字
 
-# Codex PPT
+**以前，一整页都是图片，想改一个字也不方便。这个改进版把图片和文字分开：
+生成的 PPT 中，文字可以直接在 PowerPoint 或 WPS 里自由修改。**
 
-**Codex PPT** 是一个用于生成精美 16:9 演示文稿的 Codex Skill。它现在支持两种模式：默认的图片模式，以及先生成整页图片、再逐页重建成可编辑 PowerPoint 的 editable PPTX 模式。
+> 基于 **[@qybaihe](https://github.com/qybaihe)** 的开源项目改进。
+> 原 Skill 地址：**[github.com/qybaihe/codex-ppt](https://github.com/qybaihe/codex-ppt)**。
+> 感谢原作者，原 MIT 许可证及版权声明完整保留。[查看来源](ATTRIBUTION.md)
 
-它适合那种“不能只是生成几页模板”的场景：你需要先讲清故事、锁定视觉系统、写好逐页提示词、跑 QA，再交付一套可以拿去讲的 deck。Codex PPT 会让 Codex 像一个小型 PPT 制片人一样工作：先规划，再定风格，再整页生成，再挑刺返工；如果需要可编辑版本，再把每页交给独立重建流程转成可编辑文字框和可移动视觉层。
+[English](README.en.md) · **简体中文**
 
-## 今日更新（2026-06-01）
+## 它能帮你做什么？
 
-- 新增 `editable-pptx` 模式：先生成整页图片，再逐页重建为可编辑 PowerPoint。
-- 保留默认 `image` 模式：仍然可以只生成图片，并按需打包成 PDF。
-- 新增每页 Sub Agent 重建约定：每张图单独产出 visual layers、`text-layer.json` 和 QA 记录。
-- 新增可编辑 PPTX builder 与合并脚本，把逐页结果合成为最终 `.pptx`。
+- **帮你做 PPT**：告诉 AI 主题、页数和风格，或给它一份提纲、报告，就能开始制作。
+- **做好后自己改字**：标题、正文、字母、数字和页码都可以选中修改，调字号、改颜色、挪位置也可以。
+- **改完还能接着做**：把你保存的 PPT 再交给 AI，可以接着改内容、加页面，保留你已经改好的部分。
+- **小修改少走回头路**：能复用的页面和图片就继续用；中途打断后，也能接着已完成的部分继续。
 
-## 它能做什么
+## 比以前方便在哪里？
 
-- 把选题、提纲、报告或粗糙笔记变成完整的 PPT 生成计划。
-- 自动写出 brief、storyline、design system、storyboard 和逐页 prompt。
-- 把每一页最终幻灯片生成为一张完整 AI 图片，包括版式、文字、图表和视觉主体。
-- 在交付前强制 QA：比例、可读性、页序、风格一致性、文字准确性。
-- 把通过 QA 的页面图编译成严格 16:9 的 PDF。
-- 在 editable PPTX 模式下，为每页启动独立重建流程，合并成最终可编辑 `.pptx`。
+| 你想做的事 | 原版默认流程 | 这个改进版 |
+| --- | --- | --- |
+| 改一个错字 | 整页是图片，不能直接选中文字 | 打开 PPT，双击文字就能改 |
+| 保留好看的画面，换一下文案 | 往往需要让 AI 再处理页面 | 图片保留，文字自己改 |
+| 自己改过后，再让 AI 加两页 | 手动改动不容易带入后续制作 | 以你最新保存的 PPT 接着做 |
 
-## 输出模式
+**自己改字时，不需要再次调用 AI，也不用每改一个词都等它重新生成。**
 
-- `image`：默认模式。生成完整页面图；除非用户只要图片文件，否则会继续编译成 PDF。
-- `editable-pptx`：先完成 `image` 模式的图片生成和 QA，再把每一页单独重建为 PowerPoint 可编辑文本和可移动图片层，最后导出 `.pptx`。
+## 怎么用？直接这样说
 
-## 工作流
+```text
+用 $codex-ppt 做一份8页钢琴入门PPT。
+白底、科技蓝、16:9，给我能自己修改文字的PPT。
+```
 
-<p align="center">
-  <img src="./assets/codex-ppt-workflow.png" alt="Codex PPT workflow diagram" width="100%">
-</p>
+也可以做课程讲义、工作汇报、产品介绍等内容。想要别的风格，直接说明。
 
-核心原则很简单：**图片模式里，如果某一页没有通过 QA，就重写 prompt 并重新生成整页。不要在本地修补文字或版式。** 可编辑模式只在图片通过 QA 后启动，且会把派生文件放在 `editable/` 下。
+如果你已经手动改过：
+
+```text
+这是我改过的PPT。保留我的修改，把练习提示改一下，
+再加一页“下次练习计划”，风格和前面一致。
+```
+
+## 做好后，我怎么自己改？
+
+1. 用 **PowerPoint 或 WPS** 打开生成的 `.pptx` 文件。
+2. 双击文字，直接修改；选中文字框，可以移动位置或调整字号、颜色。
+3. 保存。以后需要 AI 继续做时，把**最新保存的文件**交给它。
+
+图片仍然是图片，可以整体替换；人物、光影和复杂插画内部不能像文字一样逐项修改。
+把文字写得更长时，可能需要自己拉大文字框或调小字号。
 
 ## 安装
 
-把仓库克隆到 Codex skills 目录：
+把本仓库地址交给 Codex，让它安装其中的 `codex-ppt` Skill。
+安装后的名称是 **`codex-ppt`**，所以使用时写 **`$codex-ppt`**。
+
+<details>
+<summary>给需要手动安装或维护的人：环境、命令和技术文档</summary>
+
+下载本仓库，保留包含 `SKILL.md` 的文件夹，将其命名为 `codex-ppt`，
+接入你当前 Codex 配置支持的 Skill 发现位置。实际文件可放其他磁盘，通过目录链接发现。
+
+在 Skill 目录安装依赖：
 
 ```bash
-git clone https://github.com/qybaihe/codex-ppt.git ~/.codex/skills/codex-ppt
+python -m pip install -r requirements.txt
+npm ci
 ```
 
-然后对 Codex 说：
-
-```text
-Use $codex-ppt to make a 10-page product pitch deck about my app idea.
-```
-
-本地脚本依赖：
+项目脚本需要 Python 3.11+、Node.js；预览还需要 LibreOffice、Poppler
+（`pdfinfo`、`pdftoppm`）及 `pypdf`。已有运行环境时直接复用。
 
 ```bash
-pip install -r ~/.codex/skills/codex-ppt/requirements.txt
-npm install --prefix ~/.codex/skills/codex-ppt
+python scripts/deck.py init /path/to/project --title "钢琴入门"
+# 修改项目中的 deck.json，再补齐所需素材。
+python scripts/deck.py plan /path/to/project/deck.json
+python scripts/deck.py build /path/to/project/deck.json
+
+# 接着手动改过的文件继续：
+python scripts/deck.py import-pptx /path/to/my-edited.pptx /path/to/continued-project
+python scripts/deck.py build /path/to/continued-project/deck.json
 ```
 
-如果想要可编辑 PPT：
+可用 `--node`、`--soffice`、`--pdftoppm`、`--temp-dir` 指定本机路径。
+图片由 Codex 调用可用的图像工具生成，CLI 自身不会调用图像 API 或自动安装依赖。
 
-```text
-Use $codex-ppt to make an editable PPTX deck about my app idea.
+- [项目与布局](references/deck-project.md)
+- [直接生成无字素材](references/textless-first-mode.md)
+- [接着已有 PPT 制作](references/native-pptx-mode.md)
+- [缓存、中断和并发](references/resume-and-cache.md)
+- [已有图片的重建](references/editable-pptx-mode.md)
+- [纯图片输出](references/image-mode.md)
+- [质量检查](references/slide-quality-checklist.md)
+- [发布介绍](RELEASE_NOTES.md)
+
+手动改 PPTX 不会自动更新旧项目的 JSON，续作时应导入最新文件。
+追加页目前需要 16:9 文件；混合格式文字、组合内对象有编辑限制。
+缓存按项目保存；共享图片、主题和页码变化可能影响多页，完整 PPTX 仍需组装。
+自动检查不能替代人工检查最终画面。
+
+```bash
+python -m unittest discover -s tests -v
 ```
 
-## 示例效果
+Node 或渲染器缺失时，对应测试会跳过；可设置 `CODEX_PPT_NODE` 和
+`CODEX_PPT_TEST_DIR`。Windows 已做本机验证，其他系统仍需在对应环境验证。
 
-仓库里包含一套真实生成过的示例 deck：
+</details>
 
-- [最终 PDF](./examples/shit-app-memphis-pitch/final/shit-app-memphis-pitch.pdf)
-- [最终 PPTX](./examples/shit-app-memphis-pitch/final/shit-app-memphis-pitch.pptx)
-- [规划源文件](./examples/shit-app-memphis-pitch/source/)
+## 来源与许可证
 
-### 部分页面
+原作者：**[@qybaihe](https://github.com/qybaihe)**。
+原 Skill：**[qybaihe/codex-ppt](https://github.com/qybaihe/codex-ppt)**。
 
-![SHIT APP cover](./examples/shit-app-memphis-pitch/slides/slide-01-cover.png)
+这里的对比针对本版本基于的原版流程，[具体来源版本](ATTRIBUTION.md)已记录。
+仓库中的宣传图和 [SHIT APP 示例](examples/shit-app-memphis-pitch/README.md)来自原仓库。
 
-![Product idea slide](./examples/shit-app-memphis-pitch/slides/slide-03-product-idea.png)
-
-![Core flow slide](./examples/shit-app-memphis-pitch/slides/slide-05-core-flow.png)
-
-![AI playbook slide](./examples/shit-app-memphis-pitch/slides/slide-07-ai-playbook.png)
-
-![Roadmap closing slide](./examples/shit-app-memphis-pitch/slides/slide-10-roadmap-closing.png)
-
-## 仓库结构
-
-```text
-.
-├── SKILL.md
-├── agents/openai.yaml
-├── references/slide-quality-checklist.md
-├── references/editable-pptx-mode.md
-├── references/editable-slide-subagent-prompt.md
-├── scripts/compile_slide_images_to_pdf.py
-├── scripts/build_editable_ppt_from_layers.mjs
-├── scripts/merge_editable_slide_outputs.py
-├── assets/
-└── examples/shit-app-memphis-pitch/
-```
-
-## Skill 的思路
-
-Codex PPT 会把 PPT 生产拆成几个阶段：
-
-1. **Brief**：定义受众、目标、页数、语气、素材来源和约束。
-2. **Storyline**：先写叙事链，再开始设计页面。
-3. **Design system**：锁定配色、字号层级、网格、页面变体、图像语言和反模式。
-4. **Storyboard**：明确每一页的角色、标题、主结论、文案计划、版式、视觉内容和 QA 风险。
-5. **Generation**：为每一页写 prompt，并生成完整页面图。
-6. **QA**：拒绝错字、风格漂移、拥挤构图、裁切内容和弱封面/弱结尾。
-7. **Export**：把通过检查的页面图编译成 16:9 PDF，或进入 editable PPTX 重建流程。
-
-## 为什么是图片型 PPT？
-
-很多 AI PPT 方案会失败，是因为它们把通用模板、本地叠字和风格不一致的图形拼在一起。Codex PPT 反过来：每一页都先被当作一张完整的视觉海报来生成。
-
-这让它特别适合产品提案、概念 deck、发布材料、视觉报告、创意方案和风格强烈的项目叙事。需要后续改字、换图或调版时，可以选择 editable PPTX 模式，把最终图片 deck 再转成可编辑 PowerPoint。
-
-## License
-
-MIT
+原 [MIT LICENSE](LICENSE) 完整保留：`Copyright (c) 2026 qybaihe`。

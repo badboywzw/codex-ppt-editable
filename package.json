@@ -3,7 +3,7 @@
   "version": "0.2.0",
   "private": false,
   "type": "module",
-  "description": "Create AI-rendered slide decks and optionally reconstruct them into editable PPTX files.",
+  "description": "Create editable PPTX decks from reusable JSON projects with textless artwork and native text.",
   "scripts": {
     "help:editable": "node scripts/build_editable_ppt_from_layers.mjs --help"
   },
