@@ -1,43 +1,33 @@
 #!/usr/bin/env python3
-"""Compile ordered 16:9 slide images into a single PDF."""
+"""Compile ordered 16:9 slide images into a single PDF and optional QA contact sheet."""
 
 from __future__ import annotations
 
 import argparse
-import json
-import re
-import sys
+import math
 from pathlib import Path
 from typing import Any
 
 try:
-    from PIL import Image, ImageColor, ImageOps, UnidentifiedImageError
+    from PIL import Image, ImageColor, ImageDraw, ImageOps, UnidentifiedImageError
 except ImportError as exc:  # pragma: no cover
     raise SystemExit(
         "Pillow is required. Install it with: python -m pip install Pillow"
     ) from exc
 
+from slide_utils import (
+    load_json,
+    natural_key,
+    parse_size,
+    run_cli,
+    write_json,
+)
 
 SUPPORTED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".webp", ".tif", ".tiff", ".bmp"}
 
 
-def natural_key(path: Path) -> list[Any]:
-    parts = re.split(r"(\d+)", path.name.lower())
-    return [int(part) if part.isdigit() else part for part in parts]
-
-
-def parse_size(value: str) -> tuple[int, int]:
-    match = re.fullmatch(r"(\d+)[xX](\d+)", value.strip())
-    if not match:
-        raise argparse.ArgumentTypeError("Size must look like 1920x1080")
-    width, height = int(match.group(1)), int(match.group(2))
-    if width <= 0 or height <= 0:
-        raise argparse.ArgumentTypeError("Size values must be positive")
-    return width, height
-
-
 def load_manifest(path: Path) -> list[Path]:
-    data = json.loads(path.read_text(encoding="utf-8"))
+    data = load_json(path)
     base = path.parent
 
     if isinstance(data, list):
@@ -125,6 +115,46 @@ def normalize_image(
     return canvas
 
 
+def build_contact_sheet(
+    pages: list[Image.Image],
+    labels: list[str],
+    columns: int = 3,
+    thumb_size: tuple[int, int] = (480, 270),
+) -> Image.Image:
+    """Render a grid contact sheet of normalized slide images with captions."""
+    if not pages:
+        raise ValueError("Cannot build contact sheet from empty slide list")
+    cols = max(1, min(columns, len(pages)))
+    rows = math.ceil(len(pages) / cols)
+    pad = 24
+    header_h = 32
+    thumb_w, thumb_h = thumb_size
+    cell_w = thumb_w
+    cell_h = header_h + thumb_h
+    sheet_w = pad + cols * (cell_w + pad)
+    sheet_h = pad + rows * (cell_h + pad)
+
+    sheet = Image.new("RGB", (sheet_w, sheet_h), (18, 20, 24))
+    draw = ImageDraw.Draw(sheet)
+
+    for idx, page in enumerate(pages):
+        row = idx // cols
+        col = idx % cols
+        x0 = pad + col * (cell_w + pad)
+        y0 = pad + row * (cell_h + pad)
+        label = labels[idx] if idx < len(labels) else f"Slide {idx + 1:02d}"
+        draw.text((x0 + 4, y0 + 8), label[:52], fill=(230, 234, 240))
+        thumb = page.resize(thumb_size, Image.Resampling.LANCZOS)
+        sheet.paste(thumb, (x0, y0 + header_h))
+        draw.rectangle(
+            [x0, y0 + header_h, x0 + thumb_w - 1, y0 + header_h + thumb_h - 1],
+            outline=(68, 74, 86),
+            width=1,
+        )
+
+    return sheet
+
+
 def build_pdf(args: argparse.Namespace) -> int:
     source = Path(args.input)
     output_pdf = Path(args.output_pdf).expanduser()
@@ -140,13 +170,16 @@ def build_pdf(args: argparse.Namespace) -> int:
     if pages_dir:
         pages_dir.mkdir(parents=True, exist_ok=True)
 
+    min_width = getattr(args, "min_width", 0) or 0
     pages: list[Image.Image] = []
+    labels: list[str] = []
     report: dict[str, Any] = {
         "input": str(source),
         "output_pdf": str(output_pdf),
         "target_size": f"{target_size[0]}x{target_size[1]}",
         "fit": args.fit,
         "strict": args.strict,
+        "slide_count": len(image_paths),
         "slides": [],
     }
 
@@ -173,6 +206,14 @@ def build_pdf(args: argparse.Namespace) -> int:
                         f"not within {args.tolerance:.2%} of 16:9"
                     )
 
+                if min_width > 0 and original_size[0] < min_width:
+                    msg = (
+                        f"width {original_size[0]}px is below minimum {min_width}px"
+                    )
+                    if args.strict:
+                        raise ValueError(f"{image_path.name} {msg}")
+                    warnings.append(msg)
+
                 page = normalize_image(image, target_size, args.fit, background)
         except UnidentifiedImageError as exc:
             raise ValueError(f"Cannot read image file: {image_path}") from exc
@@ -182,6 +223,9 @@ def build_pdf(args: argparse.Namespace) -> int:
             page.save(pages_dir / normalized_name, "PNG")
 
         pages.append(page)
+        labels.append(
+            f"#{index:02d} {image_path.name} ({original_size[0]}x{original_size[1]})"
+        )
         report["slides"].append(
             {
                 "index": index,
@@ -202,13 +246,19 @@ def build_pdf(args: argparse.Namespace) -> int:
         quality=95,
     )
 
+    contact_sheet_arg = getattr(args, "contact_sheet", None)
+    if contact_sheet_arg:
+        contact_path = Path(contact_sheet_arg).expanduser()
+        contact_path.parent.mkdir(parents=True, exist_ok=True)
+        columns = getattr(args, "columns", 3) or 3
+        sheet = build_contact_sheet(pages, labels, columns=columns)
+        sheet.save(contact_path, quality=92)
+        report["contact_sheet"] = str(contact_path)
+        print(f"Wrote contact sheet to {contact_path}")
+
     if args.report:
         report_path = Path(args.report).expanduser()
-        report_path.parent.mkdir(parents=True, exist_ok=True)
-        report_path.write_text(
-            json.dumps(report, ensure_ascii=False, indent=2),
-            encoding="utf-8",
-        )
+        write_json(report_path, report)
 
     print(f"Wrote {len(pages)} slides to {output_pdf}")
     if args.report:
@@ -249,6 +299,12 @@ def make_parser() -> argparse.ArgumentParser:
         help="Allowed relative aspect-ratio difference, default: 0.01.",
     )
     parser.add_argument(
+        "--min-width",
+        type=int,
+        default=0,
+        help="Minimum source image width in pixels (warns or fails with --strict).",
+    )
+    parser.add_argument(
         "--background",
         default="#FFFFFF",
         help="Padding color for --fit contain, default: #FFFFFF.",
@@ -264,6 +320,16 @@ def make_parser() -> argparse.ArgumentParser:
         help="Optional folder to write normalized PNG pages.",
     )
     parser.add_argument(
+        "--contact-sheet",
+        help="Optional output path for a visual QA contact-sheet grid image (PNG/JPG).",
+    )
+    parser.add_argument(
+        "--columns",
+        type=int,
+        default=3,
+        help="Number of columns in --contact-sheet grid, default: 3.",
+    )
+    parser.add_argument(
         "--report",
         help="Optional JSON report path.",
     )
@@ -273,11 +339,7 @@ def make_parser() -> argparse.ArgumentParser:
 def main() -> int:
     parser = make_parser()
     args = parser.parse_args()
-    try:
-        return build_pdf(args)
-    except Exception as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 1
+    return run_cli(lambda: build_pdf(args))
 
 
 if __name__ == "__main__":

@@ -46,7 +46,7 @@ Give each subagent only the inputs for its slide:
 - that slide's storyboard entry
 - relevant design-system excerpt
 - exact approved on-slide text from the storyboard or QA notes
-- target slide size, usually `1920x1080` for image generation and `960x540` or matching source pixels for editable coordinates
+- source canvas dimensions (e.g. `1920x1080`) and target slide size (`960x540`)
 
 Each subagent must produce:
 
@@ -61,7 +61,7 @@ editable/subagents/slide-XX/
 └── qa/qa.md
 ```
 
-The `manifest.json` records textless visual assets with positions. `text-layer.json` records native PowerPoint text objects. Do not leave final body text baked into the visual layer unless explicitly documenting an accepted hybrid route.
+The `manifest.json` records textless visual assets with positions, optional `zIndex`, `background`, and `canvas: [width, height]`. `text-layer.json` records native PowerPoint text objects along with per-slide `canvas: [width, height]`, `background`, and `route`. Both visual layer boxes and text boxes are automatically normalized from `canvas` to `--slide-size` during PPTX construction. Do not leave final body text baked into the visual layer unless explicitly documenting an accepted hybrid route.
 
 Treat the approved text from storyboard/QA as the content source of truth. AI-rendered text inside the source image is layout evidence only when it conflicts with the approved text.
 
@@ -75,7 +75,7 @@ Prefer routes in this order:
 
 Complex charts, photos, logos, dense illustrations, and screenshots may remain image objects. Titles, bullets, labels, captions, page numbers, and callouts should be editable text.
 
-## Merge Per-Slide Outputs
+## Merge, Build, and Verify
 
 After subagents finish, merge their outputs:
 
@@ -84,6 +84,7 @@ python /path/to/codex-ppt/scripts/merge_editable_slide_outputs.py \
   /path/to/deck-name/editable/subagents \
   --out-layers-root /path/to/deck-name/editable/visual-layers \
   --out-text-json /path/to/deck-name/editable/text-layer.json \
+  --canvas 1920x1080 \
   --force
 ```
 
@@ -98,10 +99,24 @@ node /path/to/codex-ppt/scripts/build_editable_ppt_from_layers.mjs \
   --workspace /path/to/deck-name/editable/workspace \
   --preview-dir /path/to/deck-name/editable/preview \
   --layout-dir /path/to/deck-name/editable/layout \
-  --slide-size 960x540
+  --slide-size 960x540 \
+  --fail-on-text-fill
 ```
 
 Run `npm install` in the `codex-ppt` skill folder if the fallback `pptxgenjs` backend is needed. In Codex environments with the Presentations artifact runtime, `--backend auto` can also emit preview PNGs and layout JSON.
+
+Finally, run the automated QA verifier:
+
+```bash
+python /path/to/codex-ppt/scripts/verify_deck_outputs.py \
+  --slides-dir /path/to/deck-name/slides \
+  --layers-root /path/to/deck-name/editable/visual-layers \
+  --text-json /path/to/deck-name/editable/text-layer.json \
+  --disallow-text-fill \
+  --pptx /path/to/deck-name/final/deck.editable.pptx \
+  --require-editable-text \
+  --report /path/to/deck-name/editable/qa/verify-report.json
+```
 
 ## QA Gates
 

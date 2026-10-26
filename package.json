@@ -1,11 +1,36 @@
 {
   "name": "codex-ppt",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": false,
   "type": "module",
-  "description": "Create AI-rendered slide decks and optionally reconstruct them into editable PPTX files.",
+  "description": "Producer-style AI slide deck skill for Codex & AI agents — generate 16:9 poster-grade PDF decks or multi-layer editable PPTX presentations.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/qybaihe/codex-ppt.git"
+  },
+  "homepage": "https://github.com/qybaihe/codex-ppt#readme",
+  "bugs": {
+    "url": "https://github.com/qybaihe/codex-ppt/issues"
+  },
+  "keywords": [
+    "codex",
+    "codex-skill",
+    "agent-skill",
+    "ppt",
+    "pptx",
+    "presentation",
+    "slide-deck",
+    "ai-slides",
+    "pptxgenjs"
+  ],
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
-    "help:editable": "node scripts/build_editable_ppt_from_layers.mjs --help"
+    "help:editable": "node scripts/build_editable_ppt_from_layers.mjs --help",
+    "test": "node --test tests/*.test.mjs",
+    "test:py": "pytest",
+    "test:all": "npm test && pytest"
   },
   "dependencies": {
     "pptxgenjs": "^4.0.1"

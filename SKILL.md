@@ -227,13 +227,15 @@ Regenerate any slide marked `fix` or `regenerate`. Use AI edit/regeneration only
 
 ### Phase 6. Package Image Mode
 
-Use the bundled script to combine final slide images:
+Use the bundled script to combine final slide images, generate a visual QA contact sheet, and write a preflight report:
 
 ```bash
 python /path/to/codex-ppt/scripts/compile_slide_images_to_pdf.py \
   /path/to/deck-name/slides \
   /path/to/deck-name/final/deck.pdf \
   --strict \
+  --min-width 1280 \
+  --contact-sheet /path/to/deck-name/qa/contact-sheet.jpg \
   --report /path/to/deck-name/qa/compile-report.json
 ```
 
@@ -257,7 +259,7 @@ Process:
 1. Keep the approved slide images in `slides/` unchanged.
 2. Create `editable/subagents/`.
 3. Launch one subagent per approved slide when subagents are available. If subagents are unavailable, process the same per-slide contract sequentially.
-4. Each slide worker must produce textless visual layers plus native editable text metadata, not a single baked screenshot with duplicated editable overlay text.
+4. Each slide worker must produce textless visual layers plus native editable text metadata (`canvas`, `background`, `route`, and `texts`), not a single baked screenshot with duplicated editable overlay text.
 5. Merge the per-slide outputs:
 
 ```bash
@@ -265,6 +267,7 @@ python /path/to/codex-ppt/scripts/merge_editable_slide_outputs.py \
   /path/to/deck-name/editable/subagents \
   --out-layers-root /path/to/deck-name/editable/visual-layers \
   --out-text-json /path/to/deck-name/editable/text-layer.json \
+  --canvas 1920x1080 \
   --force
 ```
 
@@ -279,7 +282,21 @@ node /path/to/codex-ppt/scripts/build_editable_ppt_from_layers.mjs \
   --workspace /path/to/deck-name/editable/workspace \
   --preview-dir /path/to/deck-name/editable/preview \
   --layout-dir /path/to/deck-name/editable/layout \
-  --slide-size 960x540
+  --slide-size 960x540 \
+  --fail-on-text-fill
+```
+
+7. Run automated QA verification on the slide images, merged layers, and final `.pptx`:
+
+```bash
+python /path/to/codex-ppt/scripts/verify_deck_outputs.py \
+  --slides-dir /path/to/deck-name/slides \
+  --layers-root /path/to/deck-name/editable/visual-layers \
+  --text-json /path/to/deck-name/editable/text-layer.json \
+  --disallow-text-fill \
+  --pptx /path/to/deck-name/final/deck.editable.pptx \
+  --require-editable-text \
+  --report /path/to/deck-name/editable/qa/verify-report.json
 ```
 
 Run `npm install` in the skill folder before using the fallback PPTX builder. Use `--fail-on-text-fill` during strict QA when text-layer data should be rejected if any text box still has fill or outline styling.
@@ -288,9 +305,10 @@ Before delivery, verify the PPTX opens, slide count matches, `ppt/slides/slide*.
 
 ## Bundled Resources
 
-- `scripts/compile_slide_images_to_pdf.py`: compile ordered slide images into a 16:9 PDF and write a JSON preflight report.
-- `scripts/build_editable_ppt_from_layers.mjs`: assemble textless visual layers and editable text objects into a PPTX.
-- `scripts/merge_editable_slide_outputs.py`: merge one reconstruction folder per slide into one visual-layers root and one deck-level `text-layer.json`.
+- `scripts/compile_slide_images_to_pdf.py`: compile ordered slide images into a 16:9 PDF, render a QA contact-sheet grid, and write a JSON preflight report.
+- `scripts/merge_editable_slide_outputs.py`: validate and merge one reconstruction folder per slide into one visual-layers root and one deck-level `text-layer.json` while preserving per-slide `background`, `canvas`, and `route`.
+- `scripts/build_editable_ppt_from_layers.mjs`: assemble textless visual layers and editable text objects into a PPTX with automatic coordinate scaling from source `canvas` to `--slide-size`.
+- `scripts/verify_deck_outputs.py`: automated QA verifier for slide image dimensions/aspect ratios, editable layer bounds/overlaps, and `.pptx` XML semantic text runs.
 - `references/slide-quality-checklist.md`: QA checklist and regeneration rules for slide images.
 - `references/editable-pptx-mode.md`: editable mode folder contract, subagent workflow, build commands, and QA gates.
 - `references/editable-slide-subagent-prompt.md`: reusable prompt template for the per-slide reconstruction subagents.

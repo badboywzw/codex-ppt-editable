@@ -5,6 +5,7 @@ import path from "node:path";
 import os from "node:os";
 import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
+import { readJson, writeJson } from "./lib/json_io.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -18,7 +19,7 @@ function parseArgs(argv) {
     }
     if (!key.startsWith("--")) throw new Error(`Unexpected argument: ${key}`);
     const next = argv[i + 1];
-    if (!next || next.startsWith("--")) {
+    if (!next || next.startsWith("-")) {
       args[key.slice(2)] = true;
     } else {
       args[key.slice(2)] = next;
@@ -39,6 +40,7 @@ function printHelp() {
     [--layout-dir /path/to/layout] \\
     [--slide-size 960x540] \\
     [--backend auto|artifact|pptxgenjs] \\
+    [--preserve-text-fill] \\
     [--fail-on-text-fill]
 
 Notes:
@@ -55,13 +57,70 @@ function requireArg(args, key) {
 }
 
 function slideSize(value) {
-  const match = String(value || "960x540").match(/^(\d+)x(\d+)$/);
+  const match = String(value || "960x540").match(/^(\d+)[xX](\d+)$/);
   if (!match) throw new Error(`Expected --slide-size WIDTHxHEIGHT, got ${value}`);
-  return { width: Number(match[1]), height: Number(match[2]) };
+  const width = Number(match[1]);
+  const height = Number(match[2]);
+  if (width <= 0 || height <= 0) {
+    throw new Error(`Expected positive --slide-size dimensions, got ${value}`);
+  }
+  return { width, height };
+}
+
+function parseCanvas(value) {
+  if (!value) return null;
+  if (Array.isArray(value) && value.length === 2) {
+    const w = Number(value[0]);
+    const h = Number(value[1]);
+    if (w > 0 && h > 0) return [w, h];
+  }
+  if (typeof value === "string") {
+    const match = value.trim().match(/^(\d+)[xX](\d+)$/);
+    if (match) {
+      const w = Number(match[1]);
+      const h = Number(match[2]);
+      if (w > 0 && h > 0) return [w, h];
+    }
+  }
+  if (typeof value === "object" && !Array.isArray(value)) {
+    const w = Number(value.width ?? value.w);
+    const h = Number(value.height ?? value.h);
+    if (w > 0 && h > 0) return [w, h];
+  }
+  return null;
 }
 
 function pad(n) {
   return String(n).padStart(2, "0");
+}
+
+function resolveAssetPath(baseDir, file) {
+  if (typeof file !== "string" || file.trim().length === 0) {
+    throw new Error(`Invalid asset file entry in manifest: ${JSON.stringify(file)}`);
+  }
+  const resolvedBase = path.resolve(baseDir);
+  const resolved = path.resolve(resolvedBase, file);
+  const rel = path.relative(resolvedBase, resolved);
+  if (rel === "" || rel.startsWith("..") || path.isAbsolute(rel)) {
+    throw new Error(`Asset path escapes its slide folder: ${file}`);
+  }
+  return resolved;
+}
+
+function isMissingPathError(error) {
+  return error?.code === "ENOENT" || error?.code === "ENOTDIR";
+}
+
+function sortByLayerOrder(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((item, idx) => ({
+      item,
+      idx,
+      order: Number(item?.zIndex ?? item?.order ?? 0),
+    }))
+    .sort((a, b) => (a.order !== b.order ? a.order - b.order : a.idx - b.idx))
+    .map((entry) => entry.item);
 }
 
 function visibleStyleValue(value) {
@@ -126,15 +185,23 @@ async function importUtils() {
     for (const version of versions) {
       candidates.push(path.join(presentationsRoot, version, "skills/presentations/scripts/artifact_tool_utils.mjs"));
     }
-  } catch {
-    // Running outside a Codex Presentations runtime is supported only when PRESENTATIONS_ARTIFACT_UTILS is set.
+  } catch (error) {
+    if (!isMissingPathError(error)) throw error;
   }
   for (const candidate of candidates) {
     try {
       await fs.access(candidate);
-      return import(pathToFileURL(candidate).href);
-    } catch {
-      // try next
+    } catch (error) {
+      if (isMissingPathError(error)) continue;
+      throw error;
+    }
+    try {
+      return await import(pathToFileURL(candidate).href);
+    } catch (error) {
+      throw new Error(
+        `Found Presentations artifact utils at ${candidate} but failed to import it: ${error?.message || error}`,
+        { cause: error },
+      );
     }
   }
   throw new Error("Could not locate Presentations artifact_tool_utils.mjs. Set PRESENTATIONS_ARTIFACT_UTILS.");
@@ -168,8 +235,9 @@ async function findPageDir(root, slideNo) {
     try {
       const stat = await fs.stat(dir);
       if (stat.isDirectory()) return dir;
-    } catch {
-      // continue
+    } catch (error) {
+      if (isMissingPathError(error)) continue;
+      throw error;
     }
   }
   throw new Error(`Could not find page folder for slide ${slideNo} under ${root}`);
@@ -177,35 +245,82 @@ async function findPageDir(root, slideNo) {
 
 function slidesFromTextSpec(spec) {
   if (!Array.isArray(spec.slides)) throw new Error("Text JSON must contain a slides array.");
+  const deckCanvas = parseCanvas(spec.canvas || spec.sourceCanvas);
   return spec.slides.map((slide, index) => ({
     slide: Number(slide.slide ?? index + 1),
+    background: slide.background || null,
+    canvas: parseCanvas(slide.canvas || slide.sourceCanvas) || deckCanvas,
+    route: slide.route || null,
     texts: Array.isArray(slide.texts) ? slide.texts : [],
   }));
 }
 
-function assetPosition(asset, size) {
-  const position = Array.isArray(asset.position) ? asset.position : null;
-  if (!position || position.length !== 4) {
-    return { left: 0, top: 0, width: size.width, height: size.height };
-  }
-  const canvas = Array.isArray(asset.canvas) && asset.canvas.length === 2
-    ? asset.canvas
-    : (Array.isArray(asset.sourceCanvas) && asset.sourceCanvas.length === 2 ? asset.sourceCanvas : null);
-  if (!canvas) {
+function extractRawBox(item) {
+  const pos = item?.position;
+  if (Array.isArray(pos) && pos.length === 4) {
     return {
-      left: Number(position[0]),
-      top: Number(position[1]),
-      width: Math.max(1, Number(position[2])),
-      height: Math.max(1, Number(position[3])),
+      left: Number(pos[0]),
+      top: Number(pos[1]),
+      width: Number(pos[2]),
+      height: Number(pos[3]),
     };
   }
-  const [canvasWidth, canvasHeight] = canvas.map(Number);
+  if (pos && typeof pos === "object" && !Array.isArray(pos)) {
+    const left = pos.left ?? pos.x;
+    const top = pos.top ?? pos.y;
+    const width = pos.width ?? pos.w;
+    const height = pos.height ?? pos.h;
+    if (left !== undefined && top !== undefined && width !== undefined && height !== undefined) {
+      return { left: Number(left), top: Number(top), width: Number(width), height: Number(height) };
+    }
+  }
+  const left = item?.x ?? item?.left;
+  const top = item?.y ?? item?.top;
+  const width = item?.w ?? item?.width;
+  const height = item?.h ?? item?.height;
+  if (left !== undefined && top !== undefined && width !== undefined && height !== undefined) {
+    return { left: Number(left), top: Number(top), width: Number(width), height: Number(height) };
+  }
+  return null;
+}
+
+function scaleBoxToSize(box, size, canvas) {
+  if (!canvas) {
+    return {
+      left: box.left,
+      top: box.top,
+      width: Math.max(1, box.width),
+      height: Math.max(1, box.height),
+    };
+  }
+  const [canvasWidth, canvasHeight] = canvas;
   return {
-    left: Number(position[0]) / canvasWidth * size.width,
-    top: Number(position[1]) / canvasHeight * size.height,
-    width: Math.max(1, Number(position[2]) / canvasWidth * size.width),
-    height: Math.max(1, Number(position[3]) / canvasHeight * size.height),
+    left: (box.left / canvasWidth) * size.width,
+    top: (box.top / canvasHeight) * size.height,
+    width: Math.max(1, (box.width / canvasWidth) * size.width),
+    height: Math.max(1, (box.height / canvasHeight) * size.height),
   };
+}
+
+function assetPosition(asset, size, fallbackCanvas = null) {
+  const box = extractRawBox(asset);
+  if (!box) {
+    return { left: 0, top: 0, width: size.width, height: size.height };
+  }
+  const canvas =
+    parseCanvas(asset.canvas) ||
+    parseCanvas(asset.sourceCanvas) ||
+    parseCanvas(fallbackCanvas);
+  return scaleBoxToSize(box, size, canvas);
+}
+
+function textPosition(item, size, fallbackCanvas = null) {
+  const box = extractRawBox(item) || { left: 0, top: 0, width: 1, height: 1 };
+  const canvas =
+    parseCanvas(item?.canvas) ||
+    parseCanvas(item?.sourceCanvas) ||
+    parseCanvas(fallbackCanvas);
+  return scaleBoxToSize(box, size, canvas);
 }
 
 function normalizePptxColor(value, fallback = "333333") {
@@ -217,7 +332,12 @@ function normalizePptxColor(value, fallback = "333333") {
 
 function pptxScale(size) {
   const width = 10;
-  return { x: width / size.width, y: (width * size.height / size.width) / size.height, width, height: width * size.height / size.width };
+  return {
+    x: width / size.width,
+    y: ((width * size.height) / size.width) / size.height,
+    width,
+    height: (width * size.height) / size.width,
+  };
 }
 
 function toPptxPosition(position, scale) {
@@ -229,26 +349,23 @@ function toPptxPosition(position, scale) {
   };
 }
 
-async function addImageLayer(slide, artifactUtils, filePath, size, name, asset = {}) {
+async function addImageLayer(slide, artifactUtils, filePath, size, name, asset = {}, fallbackCanvas = null) {
   const image = slide.images.add({
     blob: await artifactUtils.readImageBlob(filePath),
-    fit: "contain",
-    alt: name,
+    fit: asset.fit || "contain",
+    alt: asset.alt || name,
     name,
   });
-  image.position = assetPosition(asset, size);
+  image.position = assetPosition(asset, size, fallbackCanvas);
   return image;
 }
 
 function addTextBox(slide, item, index, options = {}) {
   const transparent = "#00000000";
   const preserveTextFill = Boolean(options.preserveTextFill);
-  const position = {
-    left: Number(item.x),
-    top: Number(item.y),
-    width: Math.max(1, Number(item.w)),
-    height: Math.max(1, Number(item.h)),
-  };
+  const size = options.size || { width: 960, height: 540 };
+  const fallbackCanvas = options.canvas || null;
+  const position = textPosition(item, size, fallbackCanvas);
   if (item.rotation !== undefined && item.rotation !== null) {
     position.rotation = Number(item.rotation);
   }
@@ -263,10 +380,12 @@ function addTextBox(slide, item, index, options = {}) {
     },
   });
   shape.text = String(item.text ?? "");
-  shape.text.fontSize = Number(item.size ?? 14);
-  shape.text.typeface = item.typeface || "PingFang SC";
+  shape.text.fontSize = Number(item.size ?? item.fontSize ?? 14);
+  shape.text.typeface = item.typeface || item.fontFace || "PingFang SC";
   shape.text.color = item.color || "#333333";
   shape.text.bold = Boolean(item.bold);
+  if (item.italic !== undefined) shape.text.italic = Boolean(item.italic);
+  if (item.underline !== undefined) shape.text.underline = Boolean(item.underline);
   shape.text.alignment = item.align || "left";
   shape.text.verticalAlignment = item.valign || "top";
   shape.text.insets = item.insets || { left: 0, right: 0, top: 0, bottom: 0 };
@@ -277,60 +396,96 @@ function addTextBox(slide, item, index, options = {}) {
 
 function addTextBoxPptxGen(slide, item, index, scale, options = {}) {
   const preserveTextFill = Boolean(options.preserveTextFill);
-  const position = toPptxPosition({
-    left: Number(item.x),
-    top: Number(item.y),
-    width: Math.max(1, Number(item.w)),
-    height: Math.max(1, Number(item.h)),
-  }, scale);
+  const size = options.size || { width: 960, height: 540 };
+  const fallbackCanvas = options.canvas || null;
+  const scaledBox = textPosition(item, size, fallbackCanvas);
+  const position = toPptxPosition(scaledBox, scale);
   const pptxOptions = {
     ...position,
     name: item.name || `text-${index}`,
     margin: 0,
-    fontFace: item.typeface || "PingFang SC",
-    fontSize: Number(item.size ?? 14),
+    fontFace: item.typeface || item.fontFace || "PingFang SC",
+    fontSize: Number(item.size ?? item.fontSize ?? 14),
     color: normalizePptxColor(item.color),
     bold: Boolean(item.bold),
+    italic: item.italic !== undefined ? Boolean(item.italic) : undefined,
+    underline: item.underline ? { style: "sng" } : undefined,
     align: item.align || "left",
     valign: item.valign || "top",
     fit: item.autoFit === "shrink" ? "shrink" : undefined,
     rotate: item.rotation !== undefined && item.rotation !== null ? Number(item.rotation) : undefined,
+    charSpacing: item.charSpacing ?? item.letterSpacing ?? undefined,
+    lineSpacingMultiple: item.lineSpacingMultiple ?? undefined,
+    transparency: item.transparency !== undefined
+      ? Number(item.transparency)
+      : (item.opacity !== undefined ? Math.round((1 - Number(item.opacity)) * 100) : undefined),
+    bullet: item.bullet ? Boolean(item.bullet) : undefined,
     breakLine: false,
   };
   if (preserveTextFill && visibleStyleValue(item.fill)) {
     pptxOptions.fill = { color: normalizePptxColor(item.fill, "FFFFFF"), transparency: 0 };
   }
   if (preserveTextFill && visibleStyleValue(item.line)) {
-    pptxOptions.line = { color: normalizePptxColor(lineFillValue(item.line, "#000000"), "000000"), width: lineWidthValue(item, true) };
+    pptxOptions.line = {
+      color: normalizePptxColor(lineFillValue(item.line, "#000000"), "000000"),
+      width: lineWidthValue(item, true),
+    };
   } else {
     pptxOptions.line = { color: "FFFFFF", transparency: 100 };
   }
   slide.addText(String(item.text ?? ""), pptxOptions);
 }
 
-async function addVisualLayers(slide, artifactUtils, pageDir, size, slideNo) {
+async function loadVisualManifest(pageDir) {
   const manifestPath = path.join(pageDir, "manifest.json");
-  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
-  const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
-  for (const asset of assets) {
-    await addImageLayer(slide, artifactUtils, path.join(pageDir, asset.file), size, `slide-${pad(slideNo)}-${asset.file}`, asset);
-  }
-  return assets.length;
+  const manifest = await readJson(manifestPath);
+  const rawAssets = Array.isArray(manifest.assets) ? manifest.assets : [];
+  const assets = sortByLayerOrder(rawAssets);
+  const canvas = parseCanvas(manifest.canvas || manifest.sourceCanvas || manifest.slideSize);
+  const background = manifest.background || null;
+  return { manifest, assets, canvas, background };
 }
 
-async function addVisualLayersPptxGen(slide, pageDir, size, slideNo, scale) {
-  const manifestPath = path.join(pageDir, "manifest.json");
-  const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
-  const assets = Array.isArray(manifest.assets) ? manifest.assets : [];
+async function addVisualLayers(slide, artifactUtils, pageDir, size, slideNo, fallbackCanvas = null) {
+  const { assets, canvas } = await loadVisualManifest(pageDir);
+  const effectiveCanvas = canvas || fallbackCanvas;
   for (const asset of assets) {
-    const position = assetPosition(asset, size);
-    slide.addImage({
-      path: path.join(pageDir, asset.file),
+    const assetPath = resolveAssetPath(pageDir, asset.file);
+    await addImageLayer(
+      slide,
+      artifactUtils,
+      assetPath,
+      size,
+      asset.name || `slide-${pad(slideNo)}-${asset.file}`,
+      asset,
+      effectiveCanvas,
+    );
+  }
+  return { count: assets.length, canvas: effectiveCanvas };
+}
+
+async function addVisualLayersPptxGen(slide, pageDir, size, slideNo, scale, fallbackCanvas = null) {
+  const { assets, canvas, background } = await loadVisualManifest(pageDir);
+  const effectiveCanvas = canvas || fallbackCanvas;
+  for (const asset of assets) {
+    const assetPath = resolveAssetPath(pageDir, asset.file);
+    const position = assetPosition(asset, size, effectiveCanvas);
+    const imgOpts = {
+      path: assetPath,
       ...toPptxPosition(position, scale),
       altText: asset.name || `slide-${pad(slideNo)}-${asset.file}`,
-    });
+    };
+    if (asset.transparency !== undefined) {
+      imgOpts.transparency = Number(asset.transparency);
+    } else if (asset.opacity !== undefined) {
+      imgOpts.transparency = Math.round((1 - Number(asset.opacity)) * 100);
+    }
+    if (asset.rotation !== undefined && asset.rotation !== null) {
+      imgOpts.rotate = Number(asset.rotation);
+    }
+    slide.addImage(imgOpts);
   }
-  return assets.length;
+  return { count: assets.length, canvas: effectiveCanvas, background };
 }
 
 async function buildWithPptxGen({
@@ -366,15 +521,30 @@ async function buildWithPptxGen({
   const records = [];
   for (const slideSpec of slideSpecs) {
     const slide = pptx.addSlide();
-    slide.background = { color: normalizePptxColor(textSpec.background, "F7F8F7") };
     const pageDir = await findPageDir(layersRoot, slideSpec.slide);
-    const visualLayerCount = await addVisualLayersPptxGen(slide, pageDir, size, slideSpec.slide, scale);
-    slideSpec.texts.forEach((textItem, index) => addTextBoxPptxGen(slide, textItem, index + 1, scale, { preserveTextFill }));
+    const {
+      count: visualLayerCount,
+      canvas: manifestCanvas,
+      background: manifestBg,
+    } = await addVisualLayersPptxGen(slide, pageDir, size, slideSpec.slide, scale, slideSpec.canvas);
+
+    const slideBg = slideSpec.background || manifestBg || textSpec.background || "#F7F8F7";
+    slide.background = { color: normalizePptxColor(slideBg, "F7F8F7") };
+
+    const effectiveCanvas = slideSpec.canvas || manifestCanvas;
+    const orderedTexts = sortByLayerOrder(slideSpec.texts);
+    orderedTexts.forEach((textItem, index) =>
+      addTextBoxPptxGen(slide, textItem, index + 1, scale, {
+        preserveTextFill,
+        size,
+        canvas: effectiveCanvas,
+      }),
+    );
     records.push({
       slideNumber: slideSpec.slide,
       pageDir,
       visualLayerCount,
-      textCount: slideSpec.texts.length,
+      textCount: orderedTexts.length,
     });
   }
 
@@ -386,14 +556,14 @@ async function buildWithPptxGen({
   await fs.mkdir(previewDir, { recursive: true });
   await fs.mkdir(layoutDir, { recursive: true });
   for (let i = 0; i < records.length; i += 1) {
-    await fs.writeFile(path.join(layoutDir, `slide-${pad(i + 1)}.layout.json`), `${JSON.stringify({
+    await writeJson(path.join(layoutDir, `slide-${pad(i + 1)}.layout.json`), {
       backend: "pptxgenjs",
       slide: records[i].slideNumber,
       note: "Layout JSON is a lightweight object summary. Pixel preview rendering requires backend=artifact.",
       pageDir: records[i].pageDir,
       visualLayerCount: records[i].visualLayerCount,
       textCount: records[i].textCount,
-    }, null, 2)}\n`, "utf8");
+    });
   }
 
   const buildManifest = {
@@ -414,8 +584,7 @@ async function buildWithPptxGen({
     textFillViolations,
     slides: records,
   };
-  await fs.mkdir(path.dirname(manifestOut), { recursive: true });
-  await fs.writeFile(manifestOut, `${JSON.stringify(buildManifest, null, 2)}\n`, "utf8");
+  await writeJson(manifestOut, buildManifest);
   console.log(JSON.stringify(buildManifest, null, 2));
 }
 
@@ -440,7 +609,7 @@ async function main() {
     throw new Error(`Unsupported --backend ${backend}; expected auto, artifact, or pptxgenjs.`);
   }
 
-  const textSpec = JSON.parse(await fs.readFile(textJson, "utf8"));
+  const textSpec = await readJson(textJson);
   const slideSpecs = slidesFromTextSpec(textSpec);
   const textFillViolations = collectTextFillViolations(slideSpecs);
   if (failOnTextFill && textFillViolations.length > 0) {
@@ -482,22 +651,39 @@ async function main() {
 
   for (const slideSpec of slideSpecs) {
     const slide = presentation.slides.add();
+    const pageDir = await findPageDir(layersRoot, slideSpec.slide);
+    const { background: manifestBg, canvas: manifestCanvas } = await loadVisualManifest(pageDir);
+    const slideBg = slideSpec.background || manifestBg || textSpec.background || "#F7F8F7";
     const bg = slide.shapes.add({
       geometry: "rect",
       name: `slide-${pad(slideSpec.slide)}-background`,
       position: { left: 0, top: 0, width: size.width, height: size.height },
-      fill: textSpec.background || "#F7F8F7",
-      line: { fill: textSpec.background || "#F7F8F7", width: 0 },
+      fill: slideBg,
+      line: { fill: slideBg, width: 0 },
     });
     bg.text = "";
-    const pageDir = await findPageDir(layersRoot, slideSpec.slide);
-    const visualLayerCount = await addVisualLayers(slide, utils, pageDir, size, slideSpec.slide);
-    slideSpec.texts.forEach((textItem, index) => addTextBox(slide, textItem, index + 1, { preserveTextFill }));
+    const { count: visualLayerCount } = await addVisualLayers(
+      slide,
+      utils,
+      pageDir,
+      size,
+      slideSpec.slide,
+      slideSpec.canvas || manifestCanvas,
+    );
+    const effectiveCanvas = slideSpec.canvas || manifestCanvas;
+    const orderedTexts = sortByLayerOrder(slideSpec.texts);
+    orderedTexts.forEach((textItem, index) =>
+      addTextBox(slide, textItem, index + 1, {
+        preserveTextFill,
+        size,
+        canvas: effectiveCanvas,
+      }),
+    );
     records.push({
       slideNumber: slideSpec.slide,
       pageDir,
       visualLayerCount,
-      textCount: slideSpec.texts.length,
+      textCount: orderedTexts.length,
       slideObject: slide,
     });
   }
@@ -535,12 +721,43 @@ async function main() {
     slides: records.map(({ slideNumber, pageDir, visualLayerCount, textCount }) => ({ slide: slideNumber, pageDir, visualLayerCount, textCount })),
     previewPaths,
   };
-  await fs.mkdir(path.dirname(manifestOut), { recursive: true });
-  await fs.writeFile(manifestOut, `${JSON.stringify(buildManifest, null, 2)}\n`, "utf8");
+  await writeJson(manifestOut, buildManifest);
   console.log(JSON.stringify(buildManifest, null, 2));
 }
 
-main().catch((error) => {
-  console.error(error.stack || error.message || String(error));
-  process.exit(1);
-});
+const invokedDirectly = Boolean(process.argv[1]) && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href;
+if (invokedDirectly) {
+  main().catch((error) => {
+    console.error(error.stack || error.message || String(error));
+    process.exit(1);
+  });
+}
+
+export {
+  parseArgs,
+  requireArg,
+  slideSize,
+  parseCanvas,
+  pad,
+  resolveAssetPath,
+  isMissingPathError,
+  sortByLayerOrder,
+  visibleStyleValue,
+  lineFillValue,
+  lineWidthValue,
+  hasVisibleTextBoxStyle,
+  collectTextFillViolations,
+  importUtils,
+  isArtifactRuntimeMissing,
+  findPageDir,
+  slidesFromTextSpec,
+  assetPosition,
+  textPosition,
+  normalizePptxColor,
+  pptxScale,
+  toPptxPosition,
+  addTextBox,
+  addTextBoxPptxGen,
+  buildWithPptxGen,
+  main,
+};

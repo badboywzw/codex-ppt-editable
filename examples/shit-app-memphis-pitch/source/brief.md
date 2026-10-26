@@ -42,11 +42,11 @@
 
 ## 素材来源
 
-- `/Users/baihe/Documents/shit/docs/01-product-prd.md`
-- `/Users/baihe/Documents/shit/docs/02-memphis-design-system.md`
-- `/Users/baihe/Documents/shit/docs/03-ai-playbook-and-copy.md`
-- `/Users/baihe/Documents/shit/docs/04-data-analytics-and-roadmap.md`
-- `/Users/baihe/WPS/AttraXppt模版(1)_01.png`
+- `docs/01-product-prd.md`
+- `docs/02-memphis-design-system.md`
+- `docs/03-ai-playbook-and-copy.md`
+- `docs/04-data-analytics-and-roadmap.md`
+- `assets/header-template.png`
 
 ## 生成约束
 
