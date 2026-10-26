@@ -7,6 +7,7 @@ import { pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 
 const require = createRequire(import.meta.url);
+const DEFAULT_TYPEFACE = process.platform === "win32" ? "Microsoft YaHei" : process.platform === "darwin" ? "PingFang SC" : "Arial";
 
 function parseArgs(argv) {
   const args = {};
@@ -38,7 +39,10 @@ function printHelp() {
     [--preview-dir /path/to/preview] \\
     [--layout-dir /path/to/layout] \\
     [--slide-size 960x540] \\
+    [--pptx-width 10] \\
     [--backend auto|artifact|pptxgenjs] \\
+    [--font-face "Microsoft YaHei"] \\
+    [--check-only] \\
     [--fail-on-text-fill]
 
 Notes:
@@ -46,6 +50,7 @@ Notes:
   - backend=artifact renders PPTX, preview PNGs, and layout JSON through the Codex Presentations runtime.
   - backend=pptxgenjs generates an editable PPTX without preview rendering; run npm install in the skill folder first.
   - Set PRESENTATIONS_ARTIFACT_UTILS to artifact_tool_utils.mjs when using backend=artifact outside the bundled Codex environment.
+  - --check-only validates text geometry, slide IDs, manifests and image files without exporting or loading a backend; --out is optional.
 `);
 }
 
@@ -57,7 +62,66 @@ function requireArg(args, key) {
 function slideSize(value) {
   const match = String(value || "960x540").match(/^(\d+)x(\d+)$/);
   if (!match) throw new Error(`Expected --slide-size WIDTHxHEIGHT, got ${value}`);
-  return { width: Number(match[1]), height: Number(match[2]) };
+  const size = { width: Number(match[1]), height: Number(match[2]) };
+  if (size.width <= 0 || size.height <= 0) throw new Error("Slide dimensions must be positive.");
+  return size;
+}
+
+async function preflightInputs(layersRoot, slideSpecs, size) {
+  const errors = [];
+  const warnings = [];
+  const slideIds = new Set();
+  let textCount = 0;
+  if (!slideSpecs.length) errors.push("Text source has no slides.");
+  for (const spec of slideSpecs) {
+    const label = `Slide ${spec.slide}`;
+    if (!Number.isInteger(spec.slide) || spec.slide < 1) errors.push(`${label}: ID must be a positive integer.`);
+    if (slideIds.has(spec.slide)) errors.push(`${label}: duplicate slide ID.`);
+    slideIds.add(spec.slide);
+    if (!spec.texts.length) warnings.push(`${label}: no editable text objects.`);
+    const names = new Set();
+    for (const [index, item] of spec.texts.entries()) {
+      const name = item.name || `text-${index + 1}`;
+      const context = `${label}, ${name}`;
+      if (names.has(name)) errors.push(`${context}: duplicate text object name.`);
+      names.add(name);
+      const numbers = [item.x, item.y, item.w, item.h].map(Number);
+      if (!numbers.every(Number.isFinite) || numbers[2] <= 0 || numbers[3] <= 0) {
+        errors.push(`${context}: x/y/w/h must be finite and width/height positive.`);
+      } else {
+        const [x, y, w, h] = numbers;
+        if (x < -1 || y < -1 || x + w > size.width + 1 || y + h > size.height + 1) {
+          const message = `${context}: text frame extends beyond the canvas.`;
+          (item.allowOverflow === true ? warnings : errors).push(message);
+        }
+      }
+      if (!Number.isFinite(Number(item.size ?? 14)) || Number(item.size ?? 14) <= 0) errors.push(`${context}: font size must be positive and finite.`);
+      if (item.rotation !== undefined && !Number.isFinite(Number(item.rotation))) errors.push(`${context}: rotation must be finite.`);
+      if (!String(item.text ?? "").trim()) warnings.push(`${context}: empty text.`);
+      textCount += 1;
+    }
+    try {
+      const pageDir = await findPageDir(layersRoot, spec.slide);
+      const manifest = JSON.parse(await fs.readFile(path.join(pageDir, "manifest.json"), "utf8"));
+      if (!Array.isArray(manifest.assets)) throw new Error("manifest.assets must be an array");
+      for (const asset of manifest.assets) {
+        if (typeof asset.file !== "string" || !asset.file.trim()) throw new Error("asset.file is required");
+        const file = path.join(pageDir, asset.file);
+        if (!(await fs.stat(file)).isFile()) throw new Error(`asset is not a file: ${asset.file}`);
+        if (asset.position !== undefined && (!Array.isArray(asset.position) || asset.position.length !== 4
+          || !asset.position.map(Number).every(Number.isFinite) || Number(asset.position[2]) <= 0 || Number(asset.position[3]) <= 0)) {
+          throw new Error(`invalid asset position: ${asset.file}`);
+        }
+        const canvas = asset.canvas ?? asset.sourceCanvas;
+        if (canvas !== undefined && (!Array.isArray(canvas) || canvas.length !== 2
+          || !canvas.map(Number).every((n) => Number.isFinite(n) && n > 0))) throw new Error(`invalid asset canvas: ${asset.file}`);
+      }
+    } catch (error) {
+      errors.push(`${label}: ${error.message}`);
+    }
+  }
+  if (errors.length) throw new Error(`Input preflight failed (${errors.length}):\n${errors.slice(0, 30).join("\n")}`);
+  return { passed: true, slideCount: slideSpecs.length, textCount, warnings };
 }
 
 function pad(n) {
@@ -177,10 +241,13 @@ async function findPageDir(root, slideNo) {
 
 function slidesFromTextSpec(spec) {
   if (!Array.isArray(spec.slides)) throw new Error("Text JSON must contain a slides array.");
-  return spec.slides.map((slide, index) => ({
+  return spec.slides.map((slide, index) => {
+    if (slide.texts !== undefined && !Array.isArray(slide.texts)) throw new Error(`Slide ${index + 1}: texts must be an array.`);
+    return ({
     slide: Number(slide.slide ?? index + 1),
     texts: Array.isArray(slide.texts) ? slide.texts : [],
-  }));
+    });
+  });
 }
 
 function assetPosition(asset, size) {
@@ -215,8 +282,7 @@ function normalizePptxColor(value, fallback = "333333") {
   return text.slice(0, 6) || fallback;
 }
 
-function pptxScale(size) {
-  const width = 10;
+function pptxScale(size, width = 10) {
   return { x: width / size.width, y: (width * size.height / size.width) / size.height, width, height: width * size.height / size.width };
 }
 
@@ -264,7 +330,7 @@ function addTextBox(slide, item, index, options = {}) {
   });
   shape.text = String(item.text ?? "");
   shape.text.fontSize = Number(item.size ?? 14);
-  shape.text.typeface = item.typeface || "PingFang SC";
+  shape.text.typeface = item.typeface || options.defaultTypeface || DEFAULT_TYPEFACE;
   shape.text.color = item.color || "#333333";
   shape.text.bold = Boolean(item.bold);
   shape.text.alignment = item.align || "left";
@@ -285,9 +351,9 @@ function addTextBoxPptxGen(slide, item, index, scale, options = {}) {
   }, scale);
   const pptxOptions = {
     ...position,
-    name: item.name || `text-${index}`,
+    objectName: item.name || `text-${index}`,
     margin: 0,
-    fontFace: item.typeface || "PingFang SC",
+    fontFace: item.typeface || options.defaultTypeface || DEFAULT_TYPEFACE,
     fontSize: Number(item.size ?? 14),
     color: normalizePptxColor(item.color),
     bold: Boolean(item.bold),
@@ -328,6 +394,7 @@ async function addVisualLayersPptxGen(slide, pageDir, size, slideNo, scale) {
       path: path.join(pageDir, asset.file),
       ...toPptxPosition(position, scale),
       altText: asset.name || `slide-${pad(slideNo)}-${asset.file}`,
+      objectName: asset.name || `slide-${pad(slideNo)}-${asset.file}`,
     });
   }
   return assets.length;
@@ -346,10 +413,13 @@ async function buildWithPptxGen({
   slideSpecs,
   textFillViolations,
   textJson,
+  defaultTypeface,
+  preflight,
+  physicalWidth,
 }) {
   const PptxGenJS = importPptxGen();
   const pptx = new PptxGenJS();
-  const scale = pptxScale(size);
+  const scale = pptxScale(size, physicalWidth);
   pptx.author = "Codex PPT";
   pptx.subject = "Editable PPTX generated from slide visual layers";
   pptx.title = "Codex PPT editable output";
@@ -358,8 +428,8 @@ async function buildWithPptxGen({
   pptx.defineLayout({ name: "IMAGE_PPT_KING_CUSTOM", width: scale.width, height: scale.height });
   pptx.layout = "IMAGE_PPT_KING_CUSTOM";
   pptx.theme = {
-    headFontFace: "PingFang SC",
-    bodyFontFace: "PingFang SC",
+    headFontFace: defaultTypeface,
+    bodyFontFace: defaultTypeface,
     lang: "zh-CN",
   };
 
@@ -369,7 +439,7 @@ async function buildWithPptxGen({
     slide.background = { color: normalizePptxColor(textSpec.background, "F7F8F7") };
     const pageDir = await findPageDir(layersRoot, slideSpec.slide);
     const visualLayerCount = await addVisualLayersPptxGen(slide, pageDir, size, slideSpec.slide, scale);
-    slideSpec.texts.forEach((textItem, index) => addTextBoxPptxGen(slide, textItem, index + 1, scale, { preserveTextFill }));
+    slideSpec.texts.forEach((textItem, index) => addTextBoxPptxGen(slide, textItem, index + 1, scale, { preserveTextFill, defaultTypeface }));
     records.push({
       slideNumber: slideSpec.slide,
       pageDir,
@@ -400,6 +470,8 @@ async function buildWithPptxGen({
     output: out,
     bytes: stat.size,
     backend: "pptxgenjs",
+    defaultTypeface,
+    preflight,
     slideCount: records.length,
     slideSize: size,
     layersRoot,
@@ -427,12 +499,14 @@ async function main() {
   }
   const layersRoot = path.resolve(requireArg(args, "layers-root"));
   const textJson = path.resolve(requireArg(args, "text-json"));
-  const out = path.resolve(requireArg(args, "out"));
+  const out = path.resolve(args["check-only"] ? String(args.out || path.join(path.dirname(textJson), "check-only.pptx")) : requireArg(args, "out"));
   const workspace = path.resolve(args.workspace || path.join(path.dirname(out), "codex-ppt-editable-workspace"));
   const previewDir = args["preview-dir"] ? path.resolve(args["preview-dir"]) : path.join(workspace, "preview");
   const layoutDir = args["layout-dir"] ? path.resolve(args["layout-dir"]) : path.join(workspace, "layout");
   const manifestOut = args.manifest ? path.resolve(args.manifest) : path.join(workspace, "build-manifest.json");
   const size = slideSize(args["slide-size"]);
+  const physicalWidth = Number(args["pptx-width"] ?? 10);
+  if (!Number.isFinite(physicalWidth) || physicalWidth <= 0) throw new Error("PPTX width must be positive and finite.");
   const preserveTextFill = Boolean(args["preserve-text-fill"]);
   const failOnTextFill = Boolean(args["fail-on-text-fill"]);
   const backend = String(args.backend || "auto");
@@ -442,9 +516,15 @@ async function main() {
 
   const textSpec = JSON.parse(await fs.readFile(textJson, "utf8"));
   const slideSpecs = slidesFromTextSpec(textSpec);
+  const preflight = await preflightInputs(layersRoot, slideSpecs, size);
+  const defaultTypeface = String(args["font-face"] || textSpec.typeface || DEFAULT_TYPEFACE);
   const textFillViolations = collectTextFillViolations(slideSpecs);
   if (failOnTextFill && textFillViolations.length > 0) {
     throw new Error(`Text JSON contains ${textFillViolations.length} text boxes with fill/line. Remove them or build without --fail-on-text-fill.`);
+  }
+  if (args["check-only"]) {
+    console.log(JSON.stringify({ ...preflight, defaultTypeface, textFillViolationCount: textFillViolations.length }, null, 2));
+    return;
   }
 
   let utils = null;
@@ -470,6 +550,9 @@ async function main() {
       slideSpecs,
       textFillViolations,
       textJson,
+      defaultTypeface,
+      preflight,
+      physicalWidth,
     });
     return;
   }
@@ -492,7 +575,7 @@ async function main() {
     bg.text = "";
     const pageDir = await findPageDir(layersRoot, slideSpec.slide);
     const visualLayerCount = await addVisualLayers(slide, utils, pageDir, size, slideSpec.slide);
-    slideSpec.texts.forEach((textItem, index) => addTextBox(slide, textItem, index + 1, { preserveTextFill }));
+    slideSpec.texts.forEach((textItem, index) => addTextBox(slide, textItem, index + 1, { preserveTextFill, defaultTypeface }));
     records.push({
       slideNumber: slideSpec.slide,
       pageDir,
@@ -523,6 +606,8 @@ async function main() {
     output: out,
     bytes: stat.size,
     backend: "artifact",
+    defaultTypeface,
+    preflight,
     slideCount: records.length,
     slideSize: size,
     layersRoot,
