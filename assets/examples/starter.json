@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "title": "把想法讲清楚",
+  "audience": "第一次制作演示的人",
+  "objective": "用一个目标、一条主线和一个行动组织演示",
+  "language": "zh-CN",
+  "visual_direction": "白底科技蓝，克制的线条与留白。插画如有需要应直接生成无字素材。",
+  "assets": {},
+  "slides": [
+    {"id":1,"layout":"hero","title":"把想法讲清楚","subtitle":"从一个目标，到一个行动","eyebrow":"演示的起点","bullets":["先确定听众需要做什么","让每一页只负责一个重点"],"takeaway":"先想清楚，再开始排版。"},
+    {"id":2,"layout":"bullets","title":"先确定这次演示的目标","sections":[{"heading":"听众","items":["他们已经知道什么？","他们最关心什么？"]},{"heading":"结果","items":["希望他们理解哪一个观点？","结束之后采取哪一个行动？"]}],"takeaway":"目标决定取舍。"},
+    {"id":3,"layout":"columns","title":"让内容与表达互相支持","columns":[{"heading":"内容","items":["结论明确","证据相关","行动具体"]},{"heading":"表达","items":["层级清楚","文字可读","图示准确"]}]},
+    {"id":4,"layout":"steps","title":"从内容走到交付","steps":[{"title":"确定目标","description":"写出一句话的目标"},{"title":"梳理主线","description":"让页面之间有因果关系"},{"title":"设计页面","description":"使用合适的布局和图示"},{"title":"检查交付","description":"核对文字与实际画面"}],"takeaway":"重要的是顺序清楚。"},
+    {"id":5,"layout":"matrix","title":"交付前检查三个维度","headers":["维度","检查内容","通过条件"],"rows":[["内容","结论与证据","能够支持主题"],["版式","对齐与留白","能够轻松阅读"],["文件","原生文字与预览","能编辑并正常显示"]]},
+    {"id":6,"layout":"closing","title":"下一次，从一页开始","items":[{"heading":"目标","body":"用一句话写清要传达的重点。"},{"heading":"内容","body":"选择最能支持它的证据。"},{"heading":"行动","body":"让听众知道接下来怎么做。"}],"takeaway":"让每一页都有一个清楚的任务。"}
+  ]
+}
